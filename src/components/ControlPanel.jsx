@@ -5,6 +5,7 @@ import {
   meetsContrastWithWhite,
 } from '../utils/contrast'
 import { LANGUAGE_OPTIONS } from '../translations'
+import { POPUP_TYPE_OPTIONS } from '../config/popupTypes'
 
 const MIN_CONTRAST = 3.1
 
@@ -51,11 +52,11 @@ export default function ControlPanel({ state, setImage, update, updateButton, t 
 
   const handleFileChange = (e) => {
     const file = e.target.files?.[0]
+    e.target.value = ''
     if (!file) return
     const reader = new FileReader()
     reader.onload = () => setImage(reader.result, 'file')
     reader.readAsDataURL(file)
-    e.target.value = ''
   }
 
   const handleUrlSubmit = (e) => {
@@ -78,7 +79,24 @@ export default function ControlPanel({ state, setImage, update, updateButton, t 
 
   return (
     <div className="py-2">
-      {/* 언어 선택 (최상단) */}
+      <Section title={tr.popupType || 'Popup Type'}>
+        <div>
+          <select
+            id="popup-type-select"
+            aria-label={tr.popupType || 'Popup Type'}
+            value={state.popupType || 'square'}
+            onChange={(e) => update('popupType', e.target.value)}
+            className="w-full px-3 py-2.5 rounded-lg bg-surface-800 border border-zinc-700 text-zinc-200 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500"
+          >
+            {POPUP_TYPE_OPTIONS.map((opt) => (
+              <option key={opt.id} value={opt.id}>
+                {tr[opt.labelKey] || opt.id}
+              </option>
+            ))}
+          </select>
+        </div>
+      </Section>
+
       <Section title="Language / 언어">
         <div>
           <Label htmlFor="lang-select">Select language</Label>
@@ -136,25 +154,56 @@ export default function ControlPanel({ state, setImage, update, updateButton, t 
         </div>
       </Section>
 
-      <Section title={tr.sectionButtonCount || '버튼 개수'}>
+      <Section title={tr.sectionButtonVisibility || 'Button visibility'}>
         <div className="flex items-center gap-4">
-          <span className="text-sm text-zinc-400">{tr.one ?? '1개'}</span>
+          <span className="text-sm text-zinc-400">{tr.btnVisibilityOff || 'OFF'}</span>
           <button
             type="button"
             role="switch"
-            aria-checked={state.buttonCount === 2}
-            onClick={() => update('buttonCount', state.buttonCount === 1 ? 2 : 1)}
+            aria-checked={state.buttonsVisible !== false}
+            aria-label={tr.sectionButtonVisibility || 'Button visibility'}
+            onClick={() => update('buttonsVisible', !(state.buttonsVisible ?? true))}
             className={`relative w-11 h-6 rounded-full transition-colors ${
-              state.buttonCount === 2 ? 'bg-cyan-600' : 'bg-surface-600'
+              state.buttonsVisible !== false ? 'bg-cyan-600' : 'bg-surface-600'
             }`}
           >
             <span
               className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${
-                state.buttonCount === 2 ? 'translate-x-5' : 'translate-x-0'
+                state.buttonsVisible !== false ? 'translate-x-5' : 'translate-x-0'
               }`}
             />
           </button>
-          <span className="text-sm text-zinc-400">{tr.two ?? '2개'}</span>
+          <span className="text-sm text-zinc-400">{tr.btnVisibilityOn || 'ON'}</span>
+        </div>
+        <p className="mt-3 text-xs text-zinc-500 leading-relaxed">
+          {tr.btnVisibilityHint || 'Turn ON to configure button count and styles.'}
+        </p>
+      </Section>
+
+      {state.buttonsVisible !== false && (
+        <>
+      <Section title={tr.sectionButtonCount || '버튼 개수'}>
+        <div className="space-y-3" role="radiogroup" aria-label={tr.sectionButtonCount || 'Button count'}>
+          <label className="flex items-center gap-3 cursor-pointer group">
+            <input
+              type="radio"
+              name="button-count"
+              checked={state.buttonCount === 1}
+              onChange={() => update('buttonCount', 1)}
+              className="w-4 h-4 shrink-0 border-zinc-600 bg-surface-800 text-cyan-600 focus:ring-2 focus:ring-cyan-500/50 focus:ring-offset-0 focus:ring-offset-zinc-900 accent-cyan-500"
+            />
+            <span className="text-sm text-zinc-300 group-hover:text-zinc-200">{tr.one ?? '1개'}</span>
+          </label>
+          <label className="flex items-center gap-3 cursor-pointer group">
+            <input
+              type="radio"
+              name="button-count"
+              checked={state.buttonCount === 2}
+              onChange={() => update('buttonCount', 2)}
+              className="w-4 h-4 shrink-0 border-zinc-600 bg-surface-800 text-cyan-600 focus:ring-2 focus:ring-cyan-500/50 focus:ring-offset-0 focus:ring-offset-zinc-900 accent-cyan-500"
+            />
+            <span className="text-sm text-zinc-300 group-hover:text-zinc-200">{tr.two ?? '2개'}</span>
+          </label>
         </div>
       </Section>
 
@@ -219,33 +268,8 @@ export default function ControlPanel({ state, setImage, update, updateButton, t 
           </div>
         </Section>
       )}
-
-      <Section title={tr.sectionOverlay || '오버레이 & 테두리'}>
-        <div className="space-y-5">
-          <div>
-            <Label>{tr.dimmedOpacity || '딤드 투명도'}: {state.overlayOpacity}%</Label>
-            <input
-              type="range"
-              min={0}
-              max={100}
-              value={state.overlayOpacity}
-              onChange={(e) => update('overlayOpacity', Number(e.target.value))}
-              className="w-full"
-            />
-          </div>
-          <div>
-            <Label>{tr.cornerRadius || '모서리 둥글기 (R)'}: {state.cornerRadius}px</Label>
-            <input
-              type="range"
-              min={0}
-              max={48}
-              value={state.cornerRadius}
-              onChange={(e) => update('cornerRadius', Number(e.target.value))}
-              className="w-full"
-            />
-          </div>
-        </div>
-      </Section>
+        </>
+      )}
     </div>
   )
 }

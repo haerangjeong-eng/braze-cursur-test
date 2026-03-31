@@ -4,6 +4,8 @@ import Preview from './components/Preview'
 import JsonOutput from './components/JsonOutput'
 import { getT } from './translations'
 import { getPopupHtml } from './utils/popupToHtml'
+import { compressImageDataUrlForExport } from './utils/compressImageDataUrl'
+import { POPUP_TYPE_IDS } from './config/popupTypes'
 
 // 대비 3.1 이상 되는 기본 버튼 색 (흰색 텍스트용)
 const DEFAULT_BUTTON1_BG = '#1d4ed8' // blue-700, contrast ~5.5:1
@@ -11,8 +13,10 @@ const DEFAULT_BUTTON2_BG = '#475569'  // slate-600, contrast ~5:1
 
 const defaultState = {
   language: 'KR',
+  popupType: POPUP_TYPE_IDS.SQUARE,
   imageSource: null,
   imageSourceType: null,
+  buttonsVisible: true,
   buttonCount: 1,
   button1: {
     label: '확인',
@@ -33,7 +37,20 @@ export default function App() {
   const [copiedHtml, setCopiedHtml] = useState(false)
 
   const handleCopyHtml = useCallback(async () => {
-    const html = getPopupHtml(state, getT(state.language))
+    const t = getT(state.language)
+    let imageSource = state.imageSource
+    if (imageSource?.startsWith('data:')) {
+      try {
+        const { dataUrl, warning } = await compressImageDataUrlForExport(imageSource)
+        imageSource = dataUrl
+        if (warning === 'gif_large') {
+          window.alert(t.gifLargeWarning)
+        }
+      } catch (e) {
+        console.error('Image compression failed', e)
+      }
+    }
+    const html = getPopupHtml({ ...state, imageSource }, t)
     try {
       await navigator.clipboard.writeText(html)
       setCopiedHtml(true)
@@ -69,8 +86,10 @@ export default function App() {
   const exportJson = () => {
     const payload = {
       language: state.language,
+      popupType: state.popupType,
       imageSource: state.imageSource?.startsWith('data:') ? '[Base64 Image]' : state.imageSource,
       imageSourceType: state.imageSourceType,
+      buttonsVisible: state.buttonsVisible,
       buttonCount: state.buttonCount,
       button1: state.button1,
       button2: state.button2,
@@ -84,10 +103,10 @@ export default function App() {
     <div className="min-h-screen flex flex-col bg-zinc-950">
       <header className="border-b border-zinc-800 bg-zinc-900/50 px-6 py-4">
         <h1 className="text-xl font-semibold text-zinc-100 tracking-tight">
-          1:1 모바일 팝업 빌더
+          Braze Popup Template
         </h1>
         <p className="text-sm text-zinc-400 mt-0.5">
-          설정 패널에서 옵션을 변경하면 미리보기에 실시간 반영됩니다.
+          {getT(state.language).headerSubtitle}
         </p>
       </header>
 
@@ -108,7 +127,7 @@ export default function App() {
           </div>
 
           <div className="border-t border-zinc-800 bg-zinc-900/50 p-4">
-            <div className="flex items-center gap-3 mb-3">
+            <div className="flex items-center gap-3 flex-wrap mb-3">
               <button
                 type="button"
                 onClick={handleCopyHtml}
@@ -117,10 +136,10 @@ export default function App() {
                 {copiedHtml ? getT(state.language).copied : getT(state.language).copyHtml}
               </button>
               <span className="text-xs text-zinc-500">
-                현재 팝업 디자인을 HTML 코드로 복사합니다.
+                {getT(state.language).copyHtmlHint}
               </span>
             </div>
-            <JsonOutput data={exportJson()} rawState={state} />
+            <JsonOutput data={exportJson()} rawState={state} t={getT(state.language)} />
           </div>
         </section>
       </main>

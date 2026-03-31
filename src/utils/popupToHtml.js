@@ -1,8 +1,12 @@
 /**
  * 현재 팝업 state를 인라인 스타일 기반 HTML 문자열로 변환 (복사용)
  */
-const POPUP_SIZE = 350
-const BUTTON_TOP = 280
+import {
+  getPopupTypeConfig,
+  POPUP_CONTAINER_BORDER_RADIUS,
+  POPUP_EMPTY_BACKGROUND,
+} from '../config/popupTypes'
+
 const BUTTON_HEIGHT = 48
 const BUTTON_RADIUS = 8
 const SINGLE_BUTTON_WIDTH = 300
@@ -23,23 +27,26 @@ const CLOSE_ICON_SVG =
   '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg>'
 
 /**
- * @param {object} state - App state (button1, button2, buttonCount, overlayOpacity, cornerRadius, imageSource)
- * @param {object} t - translations (dontShowAgain, close, noImage)
+ * @param {object} state - App state (popupType, button1, button2, …)
+ * @param {object} t - translations
  * @returns {string} HTML string
  */
 export function getPopupHtml(state, t = {}) {
+  const cfg = getPopupTypeConfig(state.popupType)
   const overlayRgba = `rgba(0,0,0,${(state.overlayOpacity ?? 70) / 100})`
-  const popupW = POPUP_SIZE
-  const popupH = POPUP_SIZE
-  const radius = state.cornerRadius ?? 16
+  const popupW = cfg.width
+  const popupH = cfg.height
   const imgSrc = state.imageSource
+  const hasImage = Boolean(imgSrc)
+  const showButtons = state.buttonsVisible !== false
   const noImageText = escapeHtml(t.noImage || '배경 이미지 없음')
   const dontShowAgain = escapeHtml(t.dontShowAgain || "Don't show again")
   const closeText = escapeHtml(t.close || 'Close')
+  const emptyBg = POPUP_EMPTY_BACKGROUND
 
-  const bgContent = imgSrc
-    ? `<img src="${escapeHtml(imgSrc)}" alt="" style="width:100%;height:100%;object-fit:cover;display:block;">`
-    : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#71717a;font-size:14px;">${noImageText}</div>`
+  const bgContent = hasImage
+    ? `<img src="${escapeHtml(imgSrc)}" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;">`
+    : `<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#a1a1aa;font-size:14px;background:${emptyBg};">${noImageText}</div>`
 
   const isTwo = state.buttonCount === 2
   const btn1Label = escapeHtml(state.button1?.label ?? '확인')
@@ -57,17 +64,26 @@ export function getPopupHtml(state, t = {}) {
   `
 
   const gapStyle = isTwo ? `gap:${DUAL_BUTTON_GAP}px;` : ''
+  const r = POPUP_CONTAINER_BORDER_RADIUS
+  const btnPosStyle =
+    cfg.buttonBottom != null
+      ? `left:50%;transform:translateX(-50%);bottom:${cfg.buttonBottom}px;`
+      : `left:50%;transform:translateX(-50%);top:${cfg.buttonTop}px;`
 
-  return `<!-- Popup 350x350 (from builder) -->
+  const innerBgLayer = `<div style="position:absolute;inset:0;z-index:0;background:transparent;">${bgContent}</div>`
+
+  const buttonsBlock = showButtons
+    ? `<div style="position:absolute;${btnPosStyle}height:${BUTTON_HEIGHT}px;display:flex;align-items:center;justify-content:center;${gapStyle}z-index:10;">
+      ${buttonsHtml.trim()}
+    </div>`
+    : ''
+
+  return `<!-- Popup ${popupW}x${popupH} (${cfg.id}, builder) -->
 <div style="position:relative;width:${popupW}px;margin:0 auto;box-sizing:border-box;">
   <div style="position:absolute;inset:0;background:${overlayRgba};z-index:10;pointer-events:none;"></div>
-  <div style="position:relative;z-index:20;width:${popupW}px;height:${popupH}px;border-radius:${radius}px;overflow:hidden;box-shadow:0 20px 25px -5px rgba(0,0,0,0.2);">
-    <div style="position:absolute;inset:0;z-index:0;background:#3f3f46;">
-      ${bgContent}
-    </div>
-    <div style="position:absolute;left:50%;transform:translateX(-50%);top:${BUTTON_TOP}px;height:${BUTTON_HEIGHT}px;display:flex;align-items:center;${gapStyle}z-index:10;">
-      ${buttonsHtml.trim()}
-    </div>
+  <div style="position:relative;z-index:20;width:${popupW}px;height:${popupH}px;background:transparent;border-radius:${r}px;overflow:hidden;box-sizing:border-box;">
+    ${innerBgLayer}
+    ${buttonsBlock}
   </div>
   <footer style="display:flex;align-items:center;justify-content:space-between;width:${popupW}px;min-height:20px;padding:12px 10px 0 10px;box-sizing:border-box;">
     <button type="button" style="color:#fff;font-size:${FOOTER_FONT_SIZE}px;background:transparent;border:none;padding:0;cursor:pointer;">${dontShowAgain}</button>
