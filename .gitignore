@@ -19,3 +19,5 @@ dist/
 
 # Vite
 *.local
+.vercel
+.env*.local

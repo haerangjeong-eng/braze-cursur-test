@@ -4,6 +4,12 @@
 
 * {
   box-sizing: border-box;
+  scrollbar-width: thin;
+  scrollbar-color: rgb(113 113 122 / 0.28) transparent;
+}
+
+:root {
+  color-scheme: dark;
 }
 
 body {
@@ -12,15 +18,42 @@ body {
   min-height: 100vh;
 }
 
+/* 얇은 스크롤바 — 트랙은 숨기고 썸만 살짝 보이게 (WebKit) */
+*::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: rgb(113 113 122 / 0.28);
+  border-radius: 9999px;
+  border: 1px solid transparent;
+  background-clip: content-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background-color: rgb(161 161 170 / 0.42);
+}
+
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
 /* Custom range slider */
 input[type="range"] {
   @apply appearance-none bg-surface-600 rounded-full h-2;
 }
 input[type="range"]::-webkit-slider-thumb {
-  @apply appearance-none w-4 h-4 rounded-full bg-accent-cyan cursor-pointer border-0 shadow-lg;
+  @apply appearance-none w-4 h-4 rounded-full cursor-pointer border-0 shadow-lg;
+  background-color: #00b854;
 }
 input[type="range"]::-moz-range-thumb {
-  @apply w-4 h-4 rounded-full bg-accent-cyan cursor-pointer border-0;
+  @apply w-4 h-4 rounded-full cursor-pointer border-0;
+  background-color: #00b854;
 }
 
 /* Color picker styling */
@@ -30,9 +63,13 @@ input[type="color"] {
 input[type="color"]::-webkit-color-swatch-wrapper { padding: 2px; }
 input[type="color"]::-webkit-color-swatch { border: none; border-radius: 6px; }
 
-/* JSON area */
-.json-output {
-  font-family: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
-  font-size: 11px;
-  line-height: 1.5;
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
