@@ -64,12 +64,12 @@ export default function LanguageMenu({ language, onLanguageChange, t }) {
       </button>
       {open && (
         <ul
-          className="absolute right-0 top-full z-[70] mt-1 min-w-[13.5rem] overflow-hidden rounded-xl border border-zinc-700/90 bg-zinc-950 py-1 shadow-2xl ring-1 ring-black/40 ring-brand/10"
+          className="absolute right-0 top-full z-[70] mt-1 w-max max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-xl border border-zinc-700/90 bg-zinc-950 py-0 shadow-2xl ring-1 ring-black/40 ring-brand/10"
           role="listbox"
           aria-label={tr.sectionLanguage || 'Language'}
         >
           {LANGUAGE_OPTIONS.map((opt) => (
-            <li key={opt.code} role="none">
+            <li key={opt.code} className="w-full" role="none">
               <button
                 type="button"
                 role="option"
@@ -78,15 +78,15 @@ export default function LanguageMenu({ language, onLanguageChange, t }) {
                   onLanguageChange(opt.code)
                   setOpen(false)
                 }}
-                className={`flex w-full items-center px-3 py-2.5 text-left text-sm transition ${
+                className={`flex w-full min-w-0 items-center whitespace-nowrap px-3 py-2.5 text-left text-sm transition ${
                   language === opt.code
                     ? 'bg-brand/15 text-zinc-100'
                     : 'text-zinc-200 hover:bg-zinc-800'
                 }`}
               >
-                <span className="w-8 shrink-0 font-medium tabular-nums text-zinc-400">{opt.code}</span>
-                <span className="text-zinc-600">–</span>
-                <span className="min-w-0 pl-2">{opt.name}</span>
+                <span className="shrink-0 font-medium tabular-nums text-zinc-400">{opt.code}</span>
+                <span className="mx-1.5 shrink-0 text-zinc-600">–</span>
+                <span className="min-w-0">{opt.name}</span>
               </button>
             </li>
           ))}

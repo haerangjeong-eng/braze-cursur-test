@@ -6,6 +6,7 @@ import { getPopupHtml } from './utils/popupToHtml'
 import { compressImageDataUrlForExport } from './utils/compressImageDataUrl'
 import {
   getPopupUiGroupId,
+  isSlideModalAutoSquareType,
   POPUP_TYPE_IDS,
   SLIDE_MODAL_11_MAX_IMAGES,
   SLIDE_MODAL_11_MIN_IMAGES,
@@ -73,7 +74,7 @@ const defaultState = {
   button2: {
     label: '취소',
     bgColor: CHOICE_BUTTON_MODAL_DEFAULT_BUTTON2_BG,
-    textColor: '#ffffff',
+    textColor: '#000000',
   },
   overlayOpacity: 70,
   cornerRadius: 14,
@@ -92,6 +93,8 @@ const defaultState = {
   simpleIconVariant: SIMPLE_ICON_VARIANT_THUMB,
   simpleIconThumbSize: 'small',
   simpleIconPresetId: 'gift',
+  /** Bottom Slide Up — Icon Type 좌측 프리셋 (Character Type은 imageSource) */
+  bottomSlideUpIconPresetId: 'gift',
   bottomSlideUpText: DEFAULT_BOTTOM_SLIDE_UP_TEXT,
   /** light = 앱 라이트 모드 프리뷰(검정 바), dark = 앱 다크 모드 프리뷰(밝은 바) */
   bottomSlideAppMode: 'light',
@@ -101,6 +104,12 @@ export default function App() {
   const [state, setState] = useState(defaultState)
   /** HTML 복사 피드백 — 버튼 위 토스트 (성공·경고·오류) */
   const [copyToast, setCopyToast] = useState(null)
+  /** 복사 실패 시에만 패널 경고(링·문구) 표시 — 팝업 타입 변경 시 초기화 */
+  const [copyValidationHintsVisible, setCopyValidationHintsVisible] = useState(false)
+
+  useEffect(() => {
+    setCopyValidationHintsVisible(false)
+  }, [state.popupType])
 
   useEffect(() => {
     if (!copyToast) return
@@ -111,6 +120,7 @@ export default function App() {
   const handleCopyHtml = useCallback(async () => {
     const t = getT(state.language)
     if (!isCopyHtmlValid(state)) {
+      setCopyValidationHintsVisible(true)
       const msg = getCopyHtmlInvalidMessage(state, t)
       if (msg) setCopyToast({ message: msg, variant: 'warning' })
       return
@@ -127,10 +137,9 @@ export default function App() {
         console.error('Image compression failed', e)
       }
     }
-    let slideImages =
-      state.popupType === POPUP_TYPE_IDS.SLIDE_MODAL_1_1
-        ? normalizeSlideModal11Images(state.slideImages)
-        : state.slideImages || []
+    let slideImages = isSlideModalAutoSquareType(state.popupType)
+      ? normalizeSlideModal11Images(state.slideImages)
+      : state.slideImages || []
     if (slideImages.length) {
       const next = []
       for (let i = 0; i < slideImages.length; i++) {
@@ -180,6 +189,7 @@ export default function App() {
     )
     try {
       await navigator.clipboard.writeText(html)
+      setCopyValidationHintsVisible(false)
       setCopyToast({
         message: t.copyHtmlCompleteMessage,
         variant: 'success',
@@ -204,6 +214,12 @@ export default function App() {
         next.slideVerticalTitle = SIMPLE_ICON_ICON_DEFAULT_TITLE
         next.slideVerticalDescription = SIMPLE_ICON_ICON_DEFAULT_DESCRIPTION
       }
+      if (key === 'buttonCount' && value === 2) {
+        next.button2 = {
+          ...next.button2,
+          textColor: s.button2?.textColor ?? '#000000',
+        }
+      }
       if (key === 'language') {
         const t = getT(value)
         next.button1 = { ...s.button1, label: t.defaultButton1 }
@@ -227,7 +243,7 @@ export default function App() {
             s.slideVerticalPreviewIndex ?? 0,
             Math.max(0, sv.length - 1)
           )
-        } else if (value === POPUP_TYPE_IDS.SLIDE_MODAL_1_1) {
+        } else if (isSlideModalAutoSquareType(value)) {
           const imgs = normalizeSlideModal11Images(s.slideImages)
           next.slideImages = imgs
           next.slideImagesSlotKeys = normalizeSlideModal11SlotKeys(imgs, s.slideImagesSlotKeys)
@@ -237,7 +253,10 @@ export default function App() {
           )
         } else if (value === POPUP_TYPE_IDS.SIMPLE_ICON_MODAL) {
           next.button1 = { ...s.button1, label: 'Read Now', bgColor: SMV_BTN_BG }
-        } else if (value === POPUP_TYPE_IDS.BOTTOM_SLIDE_UP) {
+        } else if (
+          value === POPUP_TYPE_IDS.BOTTOM_SLIDE_UP ||
+          value === POPUP_TYPE_IDS.BOTTOM_SLIDE_UP_ICON
+        ) {
           if (!String(s.bottomSlideUpText ?? '').trim()) {
             next.bottomSlideUpText = DEFAULT_BOTTOM_SLIDE_UP_TEXT
           }
@@ -268,7 +287,7 @@ export default function App() {
           next.button2 = {
             ...s.button2,
             bgColor: CHOICE_BUTTON_MODAL_DEFAULT_BUTTON2_BG,
-            textColor: '#ffffff',
+            textColor: '#000000',
           }
         }
       }
@@ -525,7 +544,7 @@ export default function App() {
   return (
     <div className="flex h-[100dvh] max-h-[100dvh] min-h-0 flex-col overflow-hidden bg-zinc-950">
       <main className="flex min-h-0 flex-1 flex-col overflow-hidden lg:flex-row">
-        <aside className="flex min-h-0 w-full shrink-0 flex-col overflow-hidden border-b border-zinc-800/90 bg-zinc-950/55 lg:w-[380px] lg:border-b-0 lg:border-r">
+        <aside className="box-border flex min-h-0 w-full shrink-0 flex-col overflow-hidden border-b border-zinc-800/90 bg-zinc-950/55 lg:w-[380px] lg:min-w-[380px] lg:max-w-[380px] lg:shrink-0 lg:border-b-0 lg:border-r">
           <ControlPanel
             state={state}
             setImage={setImage}
@@ -542,6 +561,7 @@ export default function App() {
             t={t}
             onCopyHtml={handleCopyHtml}
             copyToast={copyToast}
+            copyValidationHintsVisible={copyValidationHintsVisible}
             headerHelpOpen={headerHelpOpen}
             onHeaderHelpEnter={onHeaderHelpEnter}
             onHeaderHelpLeave={onHeaderHelpLeave}
@@ -556,6 +576,7 @@ export default function App() {
               onSlideVerticalPreviewIndexChange={(idx) =>
                 update('slideVerticalPreviewIndex', idx)
               }
+              onSlidePreviewIndexChange={(idx) => update('slidePreviewIndex', idx)}
             />
           </div>
         </section>

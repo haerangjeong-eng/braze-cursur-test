@@ -9,19 +9,20 @@ import {
   BOTTOM_SLIDE_UP_MARGIN_H,
   BOTTOM_SLIDE_UP_PAD_X,
   BOTTOM_SLIDE_UP_RADIUS,
+  BOTTOM_SLIDE_UP_ICON_THUMB_PX,
   BOTTOM_SLIDE_UP_THUMB_PX,
   BOTTOM_SLIDE_UP_THUMB_RADIUS,
+  getBottomSlideUpThumbSrc,
   getPopupTypeConfig,
   POPUP_CONTAINER_BORDER_RADIUS,
   POPUP_EMPTY_BACKGROUND,
+  isSlideModalAutoSquareType,
   POPUP_TYPE_IDS,
   SMV_BTN_BG,
   SMV_BTN_H,
   SMV_BTN_RADIUS,
   SMV_BTN_W,
-  SMV_CAROUSEL_CENTER_SLOT_LEFT,
   SMV_CAROUSEL_GAP,
-  SMV_CAROUSEL_PAGINATION_INSET,
   SMV_CAROUSEL_SLIDE_W,
   SMV_COLUMN_W,
   SMV_CONTENT_PAD_X,
@@ -86,7 +87,8 @@ const SMV_TEXT_FONT =
 function smvCarouselStyles(carouselSlideW) {
   return (
     '<style>.smv-hide-scrollbar{scrollbar-width:none;-ms-overflow-style:none}.smv-hide-scrollbar::-webkit-scrollbar{width:0;height:0}' +
-    '.smv-carousel-view{scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;touch-action:pan-x}' +
+    '.smv-carousel-view{scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;touch-action:pan-x;scroll-behavior:smooth}' +
+    '.smv-carousel-view.smv-carousel-instant{scroll-behavior:auto!important}' +
     `.smv-carousel-slide{flex:0 0 ${carouselSlideW}px;scroll-snap-align:center}</style>`
   )
 }
@@ -125,7 +127,12 @@ function getSlideModalVerticalHtml(state, t) {
     images.length - 1
   )
   const total = images.length
-  const current = slideIdx + 1
+  const dotsHtml = images
+    .map((_, i) => {
+      const bg = i === slideIdx ? '#00DC64' : '#ffffff'
+      return `<span data-smv-dot="${i}" style="width:6px;height:6px;border-radius:50%;background-color:${bg};transition:background-color 0.35s ease;flex-shrink:0;"></span>`
+    })
+    .join('')
   const dontShowAgain = escapeHtml(t.dontShowAgain || "Don't show again")
   const closeText = escapeHtml(t.close || 'Close')
   const title = escapeHtml(state.slideVerticalTitle ?? '')
@@ -171,7 +178,82 @@ function getSlideModalVerticalHtml(state, t) {
   const carouselCss = smvCarouselStyles(SMV_CAROUSEL_SLIDE_W)
   const initialTrackIdx = slideIdx + 1
   const n = total
-  const smvCarouselScript = `<script>(function(){var n=${n};var el=document.querySelector("[data-smv-carousel]");if(!el)return;var track=el.firstElementChild;if(!track)return;var slides=track.children;function centerIdx(){var vr=el.getBoundingClientRect();var mid=vr.left+vr.clientWidth/2;var best=0,bd=1e9;for(var i=0;i<slides.length;i++){var r=slides[i].getBoundingClientRect();var c=r.left+r.width/2;var d=Math.abs(c-mid);if(d<bd){bd=d;best=i;}}return best;}function setCur(num){var p=el.parentElement,s=p&&p.querySelector("[data-smv-cur]");if(s)s.textContent=num;}var suppress=false;function settle(){if(suppress)return;var ti=centerIdx();if(ti===0){suppress=true;if(slides[n])slides[n].scrollIntoView({inline:"center",block:"nearest",behavior:"auto"});setCur(n);suppress=false;return;}if(ti===n+1){suppress=true;if(slides[1])slides[1].scrollIntoView({inline:"center",block:"nearest",behavior:"auto"});setCur(1);suppress=false;return;}setCur(ti);}var t;el.addEventListener("scroll",function(){clearTimeout(t);t=setTimeout(settle,100);},{passive:true});if(slides[${initialTrackIdx}])slides[${initialTrackIdx}].scrollIntoView({inline:"center",block:"nearest",behavior:"auto"});})();<\/script>`
+  const smvCarouselScript = `<script>(function(){
+var n=${n};
+var el=document.querySelector("[data-smv-carousel]");
+if(!el)return;
+var track=el.firstElementChild;
+if(!track)return;
+var slides=track.children;
+function centerIdx(){
+  var vr=el.getBoundingClientRect();
+  var mid=vr.left+vr.clientWidth/2;
+  var best=0,bd=1e9;
+  for(var i=0;i<slides.length;i++){
+    var r=slides[i].getBoundingClientRect();
+    var c=r.left+r.width/2;
+    var d=Math.abs(c-mid);
+    if(d<bd){bd=d;best=i;}
+  }
+  return best;
+}
+function logicalFromTrack(ti){
+  if(ti===0)return n-1;
+  if(ti===n+1)return 0;
+  return ti-1;
+}
+function setDotsFromTrack(ti){
+  var w=el.parentElement;
+  if(!w)return;
+  var d=w.querySelectorAll("[data-smv-dot]");
+  var logical=logicalFromTrack(ti);
+  for(var j=0;j<d.length;j++){
+    d[j].style.backgroundColor=(j===logical)?"#00DC64":"#ffffff";
+  }
+}
+function runInstant(fn,done){
+  el.classList.add("smv-carousel-instant");
+  try{fn();}finally{
+    requestAnimationFrame(function(){
+      requestAnimationFrame(function(){
+        el.classList.remove("smv-carousel-instant");
+        if(done)done();
+      });
+    });
+  }
+}
+var suppress=false;
+function settle(){
+  if(suppress)return;
+  var ti=centerIdx();
+  if(ti===0){
+    suppress=true;
+    runInstant(function(){
+      if(slides[n])slides[n].scrollIntoView({inline:"center",block:"nearest",behavior:"auto"});
+    },function(){suppress=false;});
+    setDotsFromTrack(ti);
+    return;
+  }
+  if(ti===n+1){
+    suppress=true;
+    runInstant(function(){
+      if(slides[1])slides[1].scrollIntoView({inline:"center",block:"nearest",behavior:"auto"});
+    },function(){suppress=false;});
+    setDotsFromTrack(ti);
+    return;
+  }
+  setDotsFromTrack(ti);
+}
+var t;
+el.addEventListener("scroll",function(){
+  clearTimeout(t);
+  if(!suppress)setDotsFromTrack(centerIdx());
+  t=setTimeout(settle,100);
+},{passive:true});
+runInstant(function(){
+  if(slides[${initialTrackIdx}])slides[${initialTrackIdx}].scrollIntoView({inline:"center",block:"nearest",behavior:"auto"});
+});
+})();<\/script>`
 
   return `<!-- Popup ${popupW}x${popupH} (slide_modal_vertical, builder) -->
 ${carouselCss}
@@ -185,8 +267,8 @@ ${carouselCss}
           ${itemsHtml}
         </div>
       </div>
-      <div aria-hidden="true" style="position:absolute;left:${SMV_CAROUSEL_CENTER_SLOT_LEFT}px;top:0;width:${SMV_CAROUSEL_SLIDE_W}px;height:${slideH}px;pointer-events:none;z-index:15;">
-        <div style="position:absolute;right:${SMV_CAROUSEL_PAGINATION_INSET}px;bottom:${SMV_CAROUSEL_PAGINATION_INSET}px;width:38px;height:20px;border-radius:10px;background:rgba(0,0,0,0.8);display:flex;align-items:center;justify-content:center;gap:2px;font-size:10px;font-weight:500;pointer-events:none;white-space:nowrap;"><span data-smv-cur style="color:#ffffff;">${current}</span><span style="color:#828282;">/</span><span style="color:#828282;">${total}</span></div>
+      <div aria-hidden="true" style="position:absolute;left:0;top:0;width:${SMV_MODAL_W}px;height:${slideH}px;pointer-events:none;z-index:15;">
+        <div style="position:absolute;left:0;right:0;bottom:8px;display:flex;justify-content:center;align-items:center;gap:4px;pointer-events:none;">${dotsHtml}</div>
       </div>
       </div>
       <div style="height:${SMV_GAP_SLIDE_TEXT}px;flex-shrink:0;"></div>
@@ -242,7 +324,7 @@ function getSimpleIconModalHtml(state, t) {
   const title = escapeHtml(state.slideVerticalTitle ?? '')
   const desc = escapeHtml(state.slideVerticalDescription ?? '')
   const btnLabel = escapeHtml(state.button1?.label ?? 'Read Now')
-  const noImageText = escapeHtml(t.noImage || 'No background image')
+  const noImageText = escapeHtml(t.noImage || 'No image')
 
   const titleLines = measureSmvVisualLineCount(state.slideVerticalTitle ?? '', {
     widthPx: SMV_COLUMN_W,
@@ -310,7 +392,8 @@ function getSimpleIconModalHtml(state, t) {
 }
 
 function getBottomSlideUpHtml(state, t) {
-  if (!state.imageSource) {
+  const isIconType = state.popupType === POPUP_TYPE_IDS.BOTTOM_SLIDE_UP_ICON
+  if (!isIconType && !state.imageSource) {
     return '<!-- Bottom Slide Up: Add left image before exporting HTML. -->'
   }
   if (!String(state.bottomSlideUpText ?? '').trim()) {
@@ -326,18 +409,30 @@ function getBottomSlideUpHtml(state, t) {
   const closeBorder = 'none'
 
   const msg = escapeHtml(state.bottomSlideUpText ?? '')
-  const img = escapeHtml(state.imageSource)
+  const thumbSrc = getBottomSlideUpThumbSrc(state)
+  const img = escapeHtml(thumbSrc ?? '')
+  const thumbPx = isIconType
+    ? BOTTOM_SLIDE_UP_ICON_THUMB_PX
+    : BOTTOM_SLIDE_UP_THUMB_PX
+  const thumbRadius = `${BOTTOM_SLIDE_UP_THUMB_RADIUS}px`
+  const thumbImgStyle = isIconType
+    ? 'max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;display:block;'
+    : 'width:100%;height:100%;object-fit:cover;display:block;'
+  const thumbBoxStyle = isIconType
+    ? `flex-shrink:0;width:${thumbPx}px;height:${thumbPx}px;border-radius:${thumbRadius};overflow:hidden;background:${POPUP_EMPTY_BACKGROUND};display:flex;align-items:center;justify-content:center;`
+    : `flex-shrink:0;width:${thumbPx}px;height:${thumbPx}px;border-radius:${thumbRadius};overflow:hidden;background:${POPUP_EMPTY_BACKGROUND};`
 
   const W = 390
   const H = 844
+  const variantLabel = isIconType ? 'icon' : 'character'
 
-  return `<!-- Bottom Slide Up (${mode}) -->
+  return `<!-- Bottom Slide Up (${mode}, ${variantLabel}) -->
 <style>@keyframes bsu-up{from{transform:translate3d(0,72px,0);opacity:0}to{transform:translate3d(0,0,0);opacity:1}}</style>
 <div style="position:relative;width:${W}px;height:${H}px;background:#ffffff;margin:0 auto;overflow:hidden;font-family:${SMV_TEXT_FONT};box-sizing:border-box;">
   <div aria-hidden="true" style="position:absolute;inset:0;background:${overlayRgba};pointer-events:none;"></div>
   <div data-bsu-root style="position:absolute;left:${BOTTOM_SLIDE_UP_MARGIN_H}px;right:${BOTTOM_SLIDE_UP_MARGIN_H}px;bottom:${BOTTOM_SLIDE_UP_BOTTOM}px;width:calc(100% - ${BOTTOM_SLIDE_UP_MARGIN_H * 2}px);max-width:${W - BOTTOM_SLIDE_UP_MARGIN_H * 2}px;height:${BOTTOM_SLIDE_UP_BAR_HEIGHT}px;z-index:1;display:flex;flex-direction:row;align-items:center;box-sizing:border-box;padding-left:${BOTTOM_SLIDE_UP_PAD_X}px;padding-right:${BOTTOM_SLIDE_UP_PAD_X}px;gap:${BOTTOM_SLIDE_UP_GAP}px;border-radius:${BOTTOM_SLIDE_UP_RADIUS}px;background:${barBg};animation:bsu-up 0.3s cubic-bezier(0.22,1,0.36,1) both;">
-    <div style="flex-shrink:0;width:${BOTTOM_SLIDE_UP_THUMB_PX}px;height:${BOTTOM_SLIDE_UP_THUMB_PX}px;border-radius:${BOTTOM_SLIDE_UP_THUMB_RADIUS}px;overflow:hidden;background:${POPUP_EMPTY_BACKGROUND};">
-      <img src="${img}" alt="" style="width:100%;height:100%;object-fit:cover;display:block;">
+    <div style="${thumbBoxStyle}">
+      <img src="${img}" alt="" style="${thumbImgStyle}">
     </div>
     <div style="flex:1;min-width:0;display:flex;align-items:center;">
       <p style="margin:0;width:100%;font-size:13px;line-height:18px;font-weight:500;color:${textColor};white-space:pre-wrap;word-break:break-word;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;">${msg}</p>
@@ -367,11 +462,14 @@ export function getPopupHtml(state, t = {}) {
   if (cfg.id === POPUP_TYPE_IDS.SIMPLE_ICON_MODAL) {
     return getSimpleIconModalHtml(state, t)
   }
-  if (cfg.id === POPUP_TYPE_IDS.BOTTOM_SLIDE_UP) {
+  if (
+    cfg.id === POPUP_TYPE_IDS.BOTTOM_SLIDE_UP ||
+    cfg.id === POPUP_TYPE_IDS.BOTTOM_SLIDE_UP_ICON
+  ) {
     return getBottomSlideUpHtml(state, t)
   }
   if (
-    cfg.id === POPUP_TYPE_IDS.SLIDE_MODAL_1_1 &&
+    isSlideModalAutoSquareType(cfg.id) &&
     !slideModal11HasAllImages(state.slideImages)
   ) {
     return '<!-- Auto Square Slide: Add at least 2 images and fill every open slot (max 6) before exporting HTML. -->'
@@ -379,7 +477,7 @@ export function getPopupHtml(state, t = {}) {
   const overlayRgba = `rgba(0,0,0,${(state.overlayOpacity ?? 70) / 100})`
   const popupW = cfg.width
   const popupH = cfg.height
-  const isSlideModal = cfg.id === POPUP_TYPE_IDS.SLIDE_MODAL_1_1
+  const isSlideModal = isSlideModalAutoSquareType(cfg.id)
   const slideImages = isSlideModal
     ? normalizeSlideModal11Images(state.slideImages)
     : state.slideImages || []
@@ -392,16 +490,20 @@ export function getPopupHtml(state, t = {}) {
   const displaySrc = isSlideModal ? slideSrc : imgSrc
   const hasImage = Boolean(displaySrc)
   const showButtons = (state.buttonCount ?? 1) >= 1 && !cfg.noButtons
-  const noImageText = escapeHtml(t.noImage || '배경 이미지 없음')
+  const noImageText = escapeHtml(t.noImage || '이미지 없음')
   const dontShowAgain = escapeHtml(t.dontShowAgain || "Don't show again")
   const closeText = escapeHtml(t.close || 'Close')
   const emptyBg = POPUP_EMPTY_BACKGROUND
 
-  const slideTotal = slideImages.length > 0 ? slideImages.length : 1
-  const slideCurrent = slideImages.length > 0 ? slideIdx + 1 : 1
-  const slidePaginationHtml = isSlideModal
-    ? `<div aria-hidden="true" style="position:absolute;right:6px;bottom:6px;width:38px;height:20px;border-radius:10px;background:rgba(0,0,0,0.8);z-index:15;display:flex;align-items:center;justify-content:center;gap:2px;font-size:10px;font-weight:500;pointer-events:none;"><span style="color:#ffffff;">${slideCurrent}</span><span style="color:#828282;">/</span><span style="color:#828282;">${slideTotal}</span></div>`
-    : ''
+  const slidePaginationHtml =
+    isSlideModal && slideImages.length > 0
+      ? `<div aria-hidden="true" style="position:absolute;left:0;right:0;bottom:8px;z-index:15;display:flex;justify-content:center;align-items:center;gap:4px;pointer-events:none;">${slideImages
+          .map((_, i) => {
+            const bg = i === slideIdx ? '#00DC64' : '#ffffff'
+            return `<span style="width:6px;height:6px;border-radius:50%;background-color:${bg};transition:background-color 0.35s ease;flex-shrink:0;"></span>`
+          })
+          .join('')}</div>`
+      : ''
 
   const bgContent = hasImage
     ? `<img src="${escapeHtml(displaySrc)}" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;">`
@@ -412,6 +514,8 @@ export function getPopupHtml(state, t = {}) {
   const btn2Label = escapeHtml(state.button2?.label ?? '취소')
   const btn1Bg = state.button1?.bgColor ?? '#005c7a'
   const btn2Bg = state.button2?.bgColor ?? '#1d8637'
+  const btn1Fg = escapeHtml(state.button1?.textColor ?? '#ffffff')
+  const btn2Fg = escapeHtml(state.button2?.textColor ?? '#ffffff')
 
   const btnPad = `padding-left:${BUTTON_HORIZONTAL_PADDING}px;padding-right:${BUTTON_HORIZONTAL_PADDING}px;box-sizing:border-box;`
   const btnLabel = (label) =>
@@ -419,11 +523,11 @@ export function getPopupHtml(state, t = {}) {
 
   const buttonsHtml = isTwo
     ? `
-    <button type="button" style="width:${DUAL_BUTTON_WIDTH}px;height:${BUTTON_HEIGHT}px;border-radius:${BUTTON_RADIUS}px;background-color:${btn1Bg};color:#fff;font-size:15px;font-weight:500;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;${btnPad}">${btnLabel(btn1Label)}</button>
-    <button type="button" style="width:${DUAL_BUTTON_WIDTH}px;height:${BUTTON_HEIGHT}px;border-radius:${BUTTON_RADIUS}px;background-color:${btn2Bg};color:#fff;font-size:15px;font-weight:500;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;${btnPad}">${btnLabel(btn2Label)}</button>
+    <button type="button" style="width:${DUAL_BUTTON_WIDTH}px;height:${BUTTON_HEIGHT}px;border-radius:${BUTTON_RADIUS}px;background-color:${btn1Bg};color:${btn1Fg};font-size:15px;font-weight:500;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;${btnPad}">${btnLabel(btn1Label)}</button>
+    <button type="button" style="width:${DUAL_BUTTON_WIDTH}px;height:${BUTTON_HEIGHT}px;border-radius:${BUTTON_RADIUS}px;background-color:${btn2Bg};color:${btn2Fg};font-size:15px;font-weight:500;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;${btnPad}">${btnLabel(btn2Label)}</button>
   `
     : `
-    <button type="button" style="width:${SINGLE_BUTTON_WIDTH}px;height:${BUTTON_HEIGHT}px;border-radius:${BUTTON_RADIUS}px;background-color:${btn1Bg};color:#fff;font-size:15px;font-weight:500;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;${btnPad}">${btnLabel(btn1Label)}</button>
+    <button type="button" style="width:${SINGLE_BUTTON_WIDTH}px;height:${BUTTON_HEIGHT}px;border-radius:${BUTTON_RADIUS}px;background-color:${btn1Bg};color:${btn1Fg};font-size:15px;font-weight:500;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;${btnPad}">${btnLabel(btn1Label)}</button>
   `
 
   const gapStyle = isTwo ? `gap:${DUAL_BUTTON_GAP}px;` : ''

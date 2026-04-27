@@ -4,6 +4,18 @@ import {
 } from '../config/popupTypes'
 
 /**
+ * 무한 캐러셀 트랙 인덱스 → 실제 슬라이드 인덱스 (0 … n−1).
+ * 트랙: [dup 마지막] + n장 + [dup 첫장] → 인덱스 0, 1…n, n+1
+ */
+export function getSmvLogicalIndexFromTrackIndex(trackIndex, slotCount) {
+  const n = Math.max(0, Number(slotCount) || 0)
+  if (n <= 0) return 0
+  if (trackIndex === 0) return n - 1
+  if (trackIndex === n + 1) return 0
+  return Math.min(Math.max(0, trackIndex - 1), n - 1)
+}
+
+/**
  * 순환 피크용 트랙: [마지막 dup, 0 … n−1, 첫 dup]  (실슬 n ≥ 3)
  */
 export function getSmvCarouselTrack(arr) {

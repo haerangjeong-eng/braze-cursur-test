@@ -1,6 +1,7 @@
 import {
   BOTTOM_SLIDE_UP_SCREEN_W,
   getPopupTypeConfig,
+  isBottomSlideUpType,
   POPUP_TYPE_IDS,
   SMV_MODAL_W,
   SMV_SIMPLE_ICON_PAD_TOP,
@@ -15,7 +16,7 @@ import { computeSmvWhitePanelHeightPx } from './smvTextMeasure'
  */
 export function resolvePopupPreviewDimensions(state) {
   const cfg = getPopupTypeConfig(state.popupType)
-  if (state.popupType === POPUP_TYPE_IDS.BOTTOM_SLIDE_UP) {
+  if (isBottomSlideUpType(state.popupType)) {
     return { width: BOTTOM_SLIDE_UP_SCREEN_W, height: 844 }
   }
   if (state.popupType !== POPUP_TYPE_IDS.SIMPLE_ICON_MODAL) {

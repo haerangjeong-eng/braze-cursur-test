@@ -55,6 +55,48 @@ export function ensureContrastWithWhite(hex, minRatio = 3.1) {
   return rgb01ToHex(r2, g2, b2)
 }
 
+const BLACK_LUMINANCE = 0
+
+/** 검정(#000000) 글자와 배경 사이 대비 (WCAG). 소수점 1자리. */
+export function contrastWithBlack(hex) {
+  const L = relativeLuminance(hex)
+  return Math.round(contrastRatio(BLACK_LUMINANCE, L) * 10) / 10
+}
+
+export function meetsContrastWithBlack(hex, minRatio = 3) {
+  return contrastWithBlack(hex) >= minRatio
+}
+
+/**
+ * 글자색·배경색 WCAG 대비 (배경 vs 텍스트 휘도).
+ */
+export function contrastBetween(bgHex, fgHex) {
+  const Lbg = relativeLuminance(bgHex)
+  const Lfg = relativeLuminance(fgHex)
+  return Math.round(contrastRatio(Lbg, Lfg) * 10) / 10
+}
+
+export function meetsContrastBetween(bgHex, fgHex, minRatio = 3) {
+  return contrastBetween(bgHex, fgHex) >= minRatio - 1e-9
+}
+
+/**
+ * 검정 글자 대비 부족 시 배경을 밝혀 minRatio 이상 맞춤.
+ */
+export function ensureContrastWithBlack(hex, minRatio = 3) {
+  if (contrastWithBlack(hex) >= minRatio) return hex
+  let cur = hex
+  for (let i = 0; i < 120; i++) {
+    const [r, g, b] = hexToRgb01(cur)
+    const r2 = Math.min(1, r + (1 - r) * 0.06)
+    const g2 = Math.min(1, g + (1 - g) * 0.06)
+    const b2 = Math.min(1, b + (1 - b) * 0.06)
+    cur = rgb01ToHex(r2, g2, b2)
+    if (contrastWithBlack(cur) >= minRatio) return cur
+  }
+  return '#ffffff'
+}
+
 function hexToRgb01(hex) {
   const n = (hex || '#000000').replace(/^#/, '')
   const v = parseInt(n.length === 3 ? n.replace(/(.)/g, '$1$1') : n, 16)

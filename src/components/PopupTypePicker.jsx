@@ -17,6 +17,7 @@ import {
   PANEL_INSET_TOGGLE_BUTTON_CLASS,
   PANEL_INSET_TOGGLE_BUTTON_IDLE_CLASS,
   PANEL_INSET_TOGGLE_WRAP_CLASS,
+  PANEL_SETTINGS_SCROLL_CLASS,
   PANEL_TEMPLATE_CARD_CLASS,
 } from '../config/panelUi'
 
@@ -247,6 +248,38 @@ export default function PopupTypePicker({
         </div>
       )}
 
+      {groupId === 'auto_square' && (
+        <div
+          role="radiogroup"
+          className={`${PANEL_INSET_TOGGLE_WRAP_CLASS} mt-[16px]`}
+        >
+          <button
+            type="button"
+            aria-pressed={popupType === POPUP_TYPE_IDS.SLIDE_MODAL_1_1}
+            onClick={() => setPopupType(POPUP_TYPE_IDS.SLIDE_MODAL_1_1)}
+            className={`${PANEL_INSET_TOGGLE_BUTTON_CLASS} ${
+              popupType === POPUP_TYPE_IDS.SLIDE_MODAL_1_1
+                ? PANEL_INSET_TOGGLE_BUTTON_ACTIVE_CLASS
+                : PANEL_INSET_TOGGLE_BUTTON_IDLE_CLASS
+            }`}
+          >
+            {tr.autoSquareRatio11 ?? '1:1'}
+          </button>
+          <button
+            type="button"
+            aria-pressed={popupType === POPUP_TYPE_IDS.SLIDE_MODAL_4_5}
+            onClick={() => setPopupType(POPUP_TYPE_IDS.SLIDE_MODAL_4_5)}
+            className={`${PANEL_INSET_TOGGLE_BUTTON_CLASS} ${
+              popupType === POPUP_TYPE_IDS.SLIDE_MODAL_4_5
+                ? PANEL_INSET_TOGGLE_BUTTON_ACTIVE_CLASS
+                : PANEL_INSET_TOGGLE_BUTTON_IDLE_CLASS
+            }`}
+          >
+            {tr.autoSquareRatio45 ?? '4:5'}
+          </button>
+        </div>
+      )}
+
       {groupId === 'carousel' && (
         <div
           role="radiogroup"
@@ -287,6 +320,40 @@ export default function PopupTypePicker({
             }`}
           >
             {tr.carouselSubtype11 ?? '1:1'}
+          </button>
+        </div>
+      )}
+
+      {groupId === 'bottom_slide' && (
+        <div
+          role="radiogroup"
+          className={`${PANEL_INSET_TOGGLE_WRAP_CLASS} mt-[16px]`}
+        >
+          <button
+            type="button"
+            aria-pressed={popupType === POPUP_TYPE_IDS.BOTTOM_SLIDE_UP}
+            onClick={() => setPopupType(POPUP_TYPE_IDS.BOTTOM_SLIDE_UP)}
+            className={`${PANEL_INSET_TOGGLE_BUTTON_CLASS} ${
+              popupType === POPUP_TYPE_IDS.BOTTOM_SLIDE_UP
+                ? PANEL_INSET_TOGGLE_BUTTON_ACTIVE_CLASS
+                : PANEL_INSET_TOGGLE_BUTTON_IDLE_CLASS
+            }`}
+          >
+            {tr.bottomSlideSubtypeCharacter ?? 'Character Type'}
+          </button>
+          <button
+            type="button"
+            aria-pressed={popupType === POPUP_TYPE_IDS.BOTTOM_SLIDE_UP_ICON}
+            onClick={() =>
+              setPopupType(POPUP_TYPE_IDS.BOTTOM_SLIDE_UP_ICON)
+            }
+            className={`${PANEL_INSET_TOGGLE_BUTTON_CLASS} ${
+              popupType === POPUP_TYPE_IDS.BOTTOM_SLIDE_UP_ICON
+                ? PANEL_INSET_TOGGLE_BUTTON_ACTIVE_CLASS
+                : PANEL_INSET_TOGGLE_BUTTON_IDLE_CLASS
+            }`}
+          >
+            {tr.bottomSlideSubtypeIcon ?? 'Icon Type'}
           </button>
         </div>
       )}
@@ -355,7 +422,7 @@ export default function PopupTypePicker({
               width: floatRect.main.width,
               zIndex: 100,
             }}
-            className="max-h-72 overflow-auto rounded-lg border border-zinc-700 bg-surface-800/95 py-1 shadow-xl shadow-black/50"
+            className={`max-h-72 overflow-auto ${PANEL_SETTINGS_SCROLL_CLASS} rounded-lg border border-zinc-700 bg-surface-800/95 py-1 shadow-xl shadow-black/50`}
           >
             {POPUP_UI_GROUPS.map((g) => (
               <li key={g.id}>

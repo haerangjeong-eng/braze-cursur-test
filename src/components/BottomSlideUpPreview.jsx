@@ -5,12 +5,15 @@ import {
   BOTTOM_SLIDE_UP_BOTTOM,
   BOTTOM_SLIDE_UP_CLOSE_PX,
   BOTTOM_SLIDE_UP_GAP,
+  BOTTOM_SLIDE_UP_ICON_THUMB_PX,
   BOTTOM_SLIDE_UP_MARGIN_H,
   BOTTOM_SLIDE_UP_PAD_X,
   BOTTOM_SLIDE_UP_RADIUS,
   BOTTOM_SLIDE_UP_THUMB_PX,
   BOTTOM_SLIDE_UP_THUMB_RADIUS,
+  getBottomSlideUpThumbSrc,
   POPUP_EMPTY_BACKGROUND,
+  POPUP_TYPE_IDS,
 } from '../config/popupTypes'
 
 const SMV_TEXT_FONT = `'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans KR', sans-serif`
@@ -46,6 +49,14 @@ export default function BottomSlideUpPreview({ state, tr }) {
 
   const [visible, setVisible] = useState(true)
 
+  const barSrc = getBottomSlideUpThumbSrc(state)
+  const imgOk = Boolean(barSrc)
+  const isIconType = state.popupType === POPUP_TYPE_IDS.BOTTOM_SLIDE_UP_ICON
+  const thumbPx = isIconType
+    ? BOTTOM_SLIDE_UP_ICON_THUMB_PX
+    : BOTTOM_SLIDE_UP_THUMB_PX
+  const thumbRadius = BOTTOM_SLIDE_UP_THUMB_RADIUS
+
   useEffect(() => {
     setVisible(true)
   }, [
@@ -54,9 +65,8 @@ export default function BottomSlideUpPreview({ state, tr }) {
     state.imageSource,
     state.bottomSlideUpText,
     state.popupType,
+    state.bottomSlideUpIconPresetId,
   ])
-
-  const imgOk = Boolean(state.imageSource)
 
   return (
     <div
@@ -68,7 +78,7 @@ export default function BottomSlideUpPreview({ state, tr }) {
       />
       {visible ? (
         <motion.div
-          key={`${mode}-${state.imageSource ?? ''}-${(state.bottomSlideUpText ?? '').slice(0, 20)}`}
+          key={`${mode}-${state.popupType}-${state.bottomSlideUpIconPresetId ?? ''}-${state.imageSource ?? ''}-${(state.bottomSlideUpText ?? '').slice(0, 20)}`}
           initial={{ y: 48, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
@@ -87,20 +97,24 @@ export default function BottomSlideUpPreview({ state, tr }) {
           }}
         >
           <div
-            className="flex-shrink-0 overflow-hidden"
+            className={`flex-shrink-0 overflow-hidden ${isIconType ? 'flex items-center justify-center' : ''}`}
             style={{
-              width: BOTTOM_SLIDE_UP_THUMB_PX,
-              height: BOTTOM_SLIDE_UP_THUMB_PX,
-              borderRadius: BOTTOM_SLIDE_UP_THUMB_RADIUS,
+              width: thumbPx,
+              height: thumbPx,
+              borderRadius: thumbRadius,
               backgroundColor: imgOk ? 'transparent' : POPUP_EMPTY_BACKGROUND,
             }}
           >
             {imgOk ? (
               <img
-                src={state.imageSource}
+                src={barSrc ?? ''}
                 alt=""
                 draggable={false}
-                className="h-full w-full object-cover"
+                className={
+                  isIconType
+                    ? 'max-h-full max-w-full object-contain'
+                    : 'h-full w-full object-cover'
+                }
                 style={{ display: 'block' }}
               />
             ) : (

@@ -2,13 +2,17 @@ import { createPortal } from 'react-dom'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { LayoutGroup, motion } from 'framer-motion'
 import {
-  contrastWithWhite,
+  contrastBetween,
+  ensureContrastWithBlack,
   ensureContrastWithWhite,
-  meetsContrastWithWhite,
+  meetsContrastBetween,
 } from '../utils/contrast'
 import {
-  BOTTOM_SLIDE_UP_TEXT_CLAMP_W,
+  getBottomSlideUpTextClampWidth,
+  isBottomSlideUpType,
   isCarouselThumbPopupType,
+  isChoiceButtonModalType,
+  isSlideModalAutoSquareType,
   POPUP_TYPE_IDS,
   SLIDE_MODAL_11_MAX_IMAGES,
   SLIDE_MODAL_11_MIN_IMAGES,
@@ -18,6 +22,7 @@ import {
 } from '../config/popupTypes'
 import { PANEL_STICKY_COPY_HTML_FOOTER_BTN_CLASS } from './LanguageMenu'
 import PopupTypePicker from './PopupTypePicker'
+import PanelColorPicker from './PanelColorPicker'
 import {
   normalizeSlideModal11Images,
   normalizeSlideModal11SlotKeys,
@@ -26,6 +31,11 @@ import {
   normalizeSlideVerticalImages,
   normalizeSlideVerticalSlotKeys,
 } from '../utils/slideVertical'
+import {
+  EMPTY_COPY_HTML_PANEL_ISSUES,
+  formatCopyHtmlToastMessage,
+  getCopyHtmlPanelIssues,
+} from '../utils/copyHtmlValidation'
 import {
   BUTTON_LABEL_FONT_FAMILY,
   BUTTON_LABEL_FONT_SIZE_PX,
@@ -40,23 +50,45 @@ import {
   SIMPLE_ICON_VARIANT_ICON,
   SIMPLE_ICON_VARIANT_THUMB,
 } from '../config/simpleIcon'
-import { PANEL_WARN_AFTER_INPUT_CLASS, PANEL_WARN_SIBLING_CLASS } from '../config/panelWarn'
+import {
+  PANEL_COPY_VALIDATE_MSG_CLASS,
+  PANEL_SECTION_WARN_RING_CLASS,
+  PANEL_WARN_AFTER_INPUT_CLASS,
+  PANEL_WARN_SIBLING_CLASS,
+} from '../config/panelWarn'
 import {
   PANEL_ADD_ROW_BUTTON_CLASS,
   PANEL_AUX_BUTTON_CLASS,
   PANEL_DRAG_PORTAL_CARD_CLASS,
-  PANEL_IMAGE_EMPTY_PLACEHOLDER_CLASS,
   PANEL_INSET_TOGGLE_WRAP_CLASS,
   PANEL_INSET_TOGGLE_BUTTON_ACTIVE_CLASS,
   PANEL_INSET_TOGGLE_BUTTON_CLASS,
   PANEL_INSET_TOGGLE_BUTTON_IDLE_CLASS,
+  PANEL_SETTINGS_SCROLL_CLASS,
   PANEL_SECTION_TITLE_CLASS,
   PANEL_SLIDE_CARD_BASE,
   PANEL_SLIDE_CARD_BORDER_DROP,
   PANEL_SLIDE_CARD_BORDER_IDLE,
 } from '../config/panelUi'
 
-const MIN_CONTRAST = 3.1
+/** Choice Button Modal — 버튼 배경 vs 텍스트(#fff/#000) WCAG 대비 최소 */
+const CHOICE_BUTTON_MIN_CONTRAST = 3
+const CHOICE_BTN_TEXT_WHITE = '#ffffff'
+const CHOICE_BTN_TEXT_BLACK = '#000000'
+
+function isChoiceButtonTextWhite(hex) {
+  const h = String(hex ?? '').toLowerCase()
+  return h !== '#000000' && h !== '#000'
+}
+
+/** SMV / Auto Square 슬롯(motion `layout`) — 부드러운 트윈(긴 이징 꼬리로 덜 튀게) */
+const PANEL_SLIDE_LIST_LAYOUT_TRANSITION = {
+  layout: {
+    type: 'tween',
+    duration: 0.48,
+    ease: [0.22, 1, 0.36, 1],
+  },
+}
 
 /** Carousel / Simple Icon 패널 내 한 줄 텍스트 입력(smv-btn 등)과 동일 스타일 */
 const SMV_PANEL_INPUT_CLASS =
@@ -72,8 +104,105 @@ const IMAGE_ROW_URL_INPUT_CLASS =
   'flex-1 min-w-0 min-h-0 bg-transparent border-0 px-3 py-2 text-zinc-200 placeholder-zinc-500 text-sm leading-normal focus:outline-none focus:ring-0'
 const IMAGE_ROW_APPLY_TEXT_BTN_CLASS =
   'inline-flex shrink-0 items-center self-stretch rounded-r-lg border-l border-zinc-700 bg-surface-700 px-4 text-sm font-medium leading-normal text-zinc-200 transition-colors hover:bg-surface-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand/45'
-const IMAGE_ROW_FILE_BUTTON_CLASS =
-  'inline-flex h-11 shrink-0 items-center justify-center px-4 rounded-lg bg-surface-700 hover:bg-surface-600 text-zinc-200 text-sm font-medium leading-normal border border-zinc-700 transition-colors whitespace-nowrap'
+
+/** 이미지 미리보기 — 호버 시 파일 선택 / 삭제 라벨 공통 박스·타이포 (h-11 · text-sm · px-4) */
+const PANEL_IMAGE_PREVIEW_ACTION_BTN_CLASS =
+  'inline-flex h-11 min-h-11 shrink-0 items-center justify-center rounded-lg px-4 text-sm font-medium leading-normal shadow-sm whitespace-nowrap border transition-colors'
+const PANEL_IMAGE_PREVIEW_FILE_BTN_CLASS = `${PANEL_IMAGE_PREVIEW_ACTION_BTN_CLASS} bg-surface-700 text-zinc-200 border-zinc-700 hover:bg-surface-600`
+const PANEL_IMAGE_PREVIEW_REMOVE_BTN_CLASS = `${PANEL_IMAGE_PREVIEW_ACTION_BTN_CLASS} pointer-events-none border-red-900/50 bg-red-950/90 text-red-200`
+
+/** Choice 버튼 텍스트 색 — PanelColorPicker 스와치와 동일 크기(h-9 w-9)·라운딩 */
+const CHOICE_TXT_SWATCH_BASE =
+  'box-border h-9 w-9 shrink-0 cursor-pointer rounded-lg border p-0 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)] transition-[box-shadow,border-color] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/50'
+const CHOICE_TXT_SWATCH_ON =
+  'border-brand ring-2 ring-brand/50 ring-offset-2 ring-offset-zinc-950'
+const CHOICE_TXT_SWATCH_OFF = 'border-zinc-700 hover:border-zinc-600'
+
+function ChoiceButtonTextSwatches({
+  textColor,
+  ariaGroupLabel,
+  onWhite,
+  onBlack,
+  ariaWhite,
+  ariaBlack,
+}) {
+  const whiteOn = isChoiceButtonTextWhite(textColor)
+  const blackOn = !whiteOn
+
+  return (
+    <div
+      role="radiogroup"
+      aria-label={ariaGroupLabel}
+      className="flex shrink-0 items-center gap-2"
+    >
+      <button
+        type="button"
+        role="radio"
+        aria-checked={whiteOn}
+        aria-label={ariaWhite}
+        onClick={onWhite}
+        className={`${CHOICE_TXT_SWATCH_BASE} bg-white ${whiteOn ? CHOICE_TXT_SWATCH_ON : CHOICE_TXT_SWATCH_OFF}`}
+      />
+      <button
+        type="button"
+        role="radio"
+        aria-checked={blackOn}
+        aria-label={ariaBlack}
+        onClick={onBlack}
+        className={`${CHOICE_TXT_SWATCH_BASE} bg-black ${blackOn ? CHOICE_TXT_SWATCH_ON : CHOICE_TXT_SWATCH_OFF}`}
+      />
+    </div>
+  )
+}
+
+const PANEL_IMAGE_SIZE_GUIDE_CLASS =
+  'mb-3 rounded-lg border border-zinc-800/60 bg-zinc-900/40 px-3 py-2.5 text-[11px] leading-relaxed text-zinc-400 whitespace-pre-line'
+
+function PanelImageSizeGuide({ text }) {
+  const s = String(text ?? '').trim()
+  if (!s) return null
+  return (
+    <div className={PANEL_IMAGE_SIZE_GUIDE_CLASS} role="note">
+      {s}
+    </div>
+  )
+}
+
+function resolvePanelImageSizeGuide(tr, state) {
+  const t = tr || {}
+  const pt = state.popupType
+  if (isChoiceButtonModalType(pt)) {
+    if (pt === POPUP_TYPE_IDS.SQUARE) return t.panelImageSizeGuideChoice11 ?? ''
+    if (pt === POPUP_TYPE_IDS.VERTICAL_3_4) return t.panelImageSizeGuideChoice34 ?? ''
+    return t.panelImageSizeGuideChoice35 ?? ''
+  }
+  if (isSlideModalAutoSquareType(pt)) {
+    if (pt === POPUP_TYPE_IDS.SLIDE_MODAL_1_1) return t.panelImageSizeGuideAutoSquare11 ?? ''
+    return t.panelImageSizeGuideAutoSquare45 ?? ''
+  }
+  if (
+    pt === POPUP_TYPE_IDS.SLIDE_MODAL_VERTICAL ||
+    pt === POPUP_TYPE_IDS.CAROUSEL_THUMB_HORIZONTAL ||
+    pt === POPUP_TYPE_IDS.CAROUSEL_SNS ||
+    pt === POPUP_TYPE_IDS.CAROUSEL_STORYTELLING
+  ) {
+    if (pt === POPUP_TYPE_IDS.SLIDE_MODAL_VERTICAL)
+      return t.panelImageSizeGuideCarouselVertical ?? ''
+    if (pt === POPUP_TYPE_IDS.CAROUSEL_THUMB_HORIZONTAL)
+      return t.panelImageSizeGuideCarouselHorizontal ?? ''
+    return t.panelImageSizeGuideCarousel11 ?? ''
+  }
+  if (pt === POPUP_TYPE_IDS.SIMPLE_ICON_MODAL) {
+    const v = state.simpleIconVariant ?? SIMPLE_ICON_VARIANT_THUMB
+    if (v === SIMPLE_ICON_VARIANT_ICON) return ''
+    return (state.simpleIconThumbSize ?? 'small') === 'large'
+      ? t.panelImageSizeGuideSimpleThumbLarge ?? ''
+      : t.panelImageSizeGuideSimpleThumbSmall ?? ''
+  }
+  if (pt === POPUP_TYPE_IDS.BOTTOM_SLIDE_UP) return t.panelImageSizeGuideBottomSlide ?? ''
+  if (pt === POPUP_TYPE_IDS.BOTTOM_SLIDE_UP_ICON) return ''
+  return ''
+}
 
 const Section = ({ title, children, className = '' }) => (
   <div className={`py-5 px-5 border-b border-zinc-800/90 last:border-b-0 ${className}`}>
@@ -91,22 +220,71 @@ const Label = ({ children, htmlFor, noMargin, className = '' }) => (
   </label>
 )
 
-function ImageUrlApplyField({ id, onSubmit, submitLabel }) {
+function isValidHttpUrl(value) {
+  try {
+    const u = new URL(value)
+    return u.protocol === 'http:' || u.protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
+function ImageUrlApplyField({
+  id,
+  onSubmit,
+  submitLabel,
+  warnEmpty,
+  warnInvalid,
+}) {
+  const [warn, setWarn] = useState(null)
+
+  const handleSubmit = useCallback(
+    (e) => {
+      e.preventDefault()
+      const fd = new FormData(e.currentTarget)
+      const raw = String(fd.get('url') ?? '').trim()
+      setWarn(null)
+
+      if (!raw) {
+        setWarn(warnEmpty)
+        return
+      }
+      if (!isValidHttpUrl(raw)) {
+        setWarn(warnInvalid)
+        return
+      }
+
+      setWarn(null)
+      onSubmit(e)
+    },
+    [onSubmit, warnEmpty, warnInvalid]
+  )
+
   return (
-    <form onSubmit={onSubmit} className="w-full min-w-0">
-      <div className={IMAGE_ROW_URL_SHELL_CLASS}>
-        <input
-          id={id}
-          name="url"
-          type="url"
-          placeholder="https://..."
-          className={IMAGE_ROW_URL_INPUT_CLASS}
-        />
-        <button type="submit" className={IMAGE_ROW_APPLY_TEXT_BTN_CLASS}>
-          {submitLabel}
-        </button>
-      </div>
-    </form>
+    <div className="w-full min-w-0">
+      <form noValidate onSubmit={handleSubmit} className="w-full min-w-0">
+        <div className={IMAGE_ROW_URL_SHELL_CLASS}>
+          <input
+            id={id}
+            name="url"
+            type="text"
+            inputMode="url"
+            autoComplete="url"
+            placeholder="https://..."
+            className={IMAGE_ROW_URL_INPUT_CLASS}
+            onChange={() => setWarn(null)}
+          />
+          <button type="submit" className={IMAGE_ROW_APPLY_TEXT_BTN_CLASS}>
+            {submitLabel}
+          </button>
+        </div>
+      </form>
+      {warn ? (
+        <p role="alert" className={PANEL_WARN_AFTER_INPUT_CLASS}>
+          {warn}
+        </p>
+      ) : null}
+    </div>
   )
 }
 
@@ -367,11 +545,11 @@ function TwoLineOverflowField({
   )
 }
 
-function ContrastFeedback({ hex }) {
-  const ratio = contrastWithWhite(hex)
-  const pass = ratio >= MIN_CONTRAST
+function ContrastFeedback({ bgHex, textHex = CHOICE_BTN_TEXT_WHITE }) {
+  const ratio = contrastBetween(bgHex, textHex)
+  const pass = ratio >= CHOICE_BUTTON_MIN_CONTRAST
   return (
-    <div className="flex items-center gap-2 flex-wrap">
+    <div className="flex shrink-0 items-center gap-2 flex-nowrap whitespace-nowrap">
       <span
         className={`text-sm font-medium ${pass ? 'text-green-400' : 'text-red-400'}`}
       >
@@ -441,7 +619,7 @@ function HexColorTextField({ id, value, onValidHex }) {
           commit()
         }
       }}
-      className="w-[8.25rem] shrink-0 px-2.5 py-1.5 rounded-lg bg-surface-800 border border-zinc-700 text-zinc-200 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand/50"
+      className="box-border h-9 w-[8.25rem] shrink-0 rounded-lg border border-zinc-700 bg-surface-800 px-2.5 text-sm font-mono leading-normal text-zinc-200 focus:outline-none focus:ring-2 focus:ring-brand/50"
       placeholder="#000000"
       spellCheck={false}
       autoComplete="off"
@@ -506,6 +684,119 @@ function SmvOptionalSlotRemoveButton({ ariaLabel, onClick }) {
   )
 }
 
+/** 드롭으로 첫 파일을 input에 넣고 기존 onFileChange(React 핸들러) 호출 */
+function applyDroppedImageToInput(fileInputRef, file, onFileChange) {
+  const input = fileInputRef?.current
+  if (!input || !file?.type?.startsWith('image/')) return
+  try {
+    const dt = new DataTransfer()
+    dt.items.add(file)
+    input.files = dt.files
+    onFileChange({ target: input, currentTarget: input })
+  } catch {
+    /* 일부 환경에서 files 할당 불가 시 무시 */
+  }
+}
+
+/** 슬롯·단일 배경 — 빈 상태: 세로 py-2(8px)·안쪽 h-11 줄, 호버 시 파일 선택·클릭 업로드 / 이미지 시 미리보기·호버 삭제 — 드래그앤드롭 지원 */
+function PanelImagePreviewSlot({
+  src,
+  fileInputRef,
+  inputId,
+  onFileChange,
+  emptyLabel,
+  chooseFileLabel,
+  removeLabel,
+  onRemove,
+  emptyClassName = '',
+  imageClassName = 'w-full max-h-24 rounded-lg object-contain bg-zinc-900',
+}) {
+  const [dropOver, setDropOver] = useState(false)
+
+  const bindImageDrop = () => ({
+    onDragEnter: (e) => {
+      e.preventDefault()
+      e.stopPropagation()
+      setDropOver(true)
+    },
+    onDragLeave: (e) => {
+      e.preventDefault()
+      e.stopPropagation()
+      if (!e.currentTarget.contains(e.relatedTarget)) setDropOver(false)
+    },
+    onDragOver: (e) => {
+      e.preventDefault()
+      e.stopPropagation()
+      if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy'
+    },
+    onDrop: (e) => {
+      e.preventDefault()
+      e.stopPropagation()
+      setDropOver(false)
+      const file = e.dataTransfer?.files?.[0]
+      applyDroppedImageToInput(fileInputRef, file, onFileChange)
+    },
+  })
+
+  const dropRing = dropOver ? ' ring-2 ring-brand/50 ring-offset-2 ring-offset-zinc-950' : ''
+
+  if (!src) {
+    return (
+      <div
+        {...bindImageDrop()}
+        className={`group relative w-full min-w-0 overflow-hidden rounded-lg border border-zinc-600/60 bg-zinc-950/25 py-2 transition-colors hover:bg-zinc-800/35 focus-within:bg-zinc-800/35${dropRing} ${emptyClassName}`.trim()}
+      >
+        <input
+          ref={fileInputRef}
+          id={inputId}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={onFileChange}
+        />
+        <button
+          type="button"
+          onClick={() => fileInputRef?.current?.click()}
+          className="relative z-10 flex h-11 w-full items-center justify-center rounded-lg px-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/45"
+          aria-label={chooseFileLabel}
+        >
+          <span className="text-xs text-zinc-500 transition-opacity duration-150 group-hover:opacity-0 group-focus-within:opacity-0">
+            {emptyLabel}
+          </span>
+          <span
+            className={`pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 ${PANEL_IMAGE_PREVIEW_FILE_BTN_CLASS}`}
+          >
+            {chooseFileLabel}
+          </span>
+        </button>
+      </div>
+    )
+  }
+  return (
+    <div
+      {...bindImageDrop()}
+      className={`group relative max-w-full overflow-hidden rounded-lg border border-zinc-600/60 bg-zinc-900/40${dropRing} ${emptyClassName}`.trim()}
+    >
+      <img src={src} alt="" className={imageClassName} draggable={false} />
+      <div
+        className="pointer-events-none absolute inset-0 rounded-lg bg-black/0 transition-colors duration-200 ease-out group-hover:bg-black/55 group-focus-within:bg-black/55"
+        aria-hidden
+      />
+      <button
+        type="button"
+        aria-label={removeLabel}
+        onClick={(e) => {
+          e.stopPropagation()
+          onRemove()
+        }}
+        className="absolute inset-0 z-10 flex cursor-pointer items-center justify-center rounded-lg opacity-0 transition-opacity duration-200 ease-out group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/55"
+      >
+        <span className={PANEL_IMAGE_PREVIEW_REMOVE_BTN_CLASS}>{removeLabel}</span>
+      </button>
+    </div>
+  )
+}
+
 export default function ControlPanel({
   state,
   setImage,
@@ -522,6 +813,7 @@ export default function ControlPanel({
   t,
   onCopyHtml,
   copyToast,
+  copyValidationHintsVisible,
   headerHelpOpen,
   onHeaderHelpEnter,
   onHeaderHelpLeave,
@@ -560,6 +852,9 @@ export default function ControlPanel({
   const [contrastWarning, setContrastWarning] = useState({ button1: false, button2: false })
   const copyFooterBtnRef = useRef(null)
   const copyToastBubbleRef = useRef(null)
+  /** Hex 필드만 — 피커 열린 채 Hex 편집 시 바깥 클릭으로 닫히지 않게 */
+  const btn1BgHexWrapRef = useRef(null)
+  const btn2BgHexWrapRef = useRef(null)
   /** 복사 토스트 — 패널 가로 전체 줄(짙은 배경처럼 보임) 없이 말풍선만 뜨도록 body 고정 배치 */
   const [copyToastFixedPos, setCopyToastFixedPos] = useState(null)
   const tr = t || {}
@@ -601,22 +896,31 @@ export default function ControlPanel({
       window.removeEventListener('scroll', layoutCopyToast, true)
     }
   }, [copyToast, layoutCopyToast])
-  const isSlideModal11 = state.popupType === POPUP_TYPE_IDS.SLIDE_MODAL_1_1
+  const isSlideModalAutoSquare = isSlideModalAutoSquareType(state.popupType)
   const isSmvCarousel = isCarouselThumbPopupType(state.popupType)
   const isSimpleIconModal = state.popupType === POPUP_TYPE_IDS.SIMPLE_ICON_MODAL
-  const isBottomSlideUp = state.popupType === POPUP_TYPE_IDS.BOTTOM_SLIDE_UP
+  const isBottomSlideUp = isBottomSlideUpType(state.popupType)
+  const isBottomSlideCharacter =
+    state.popupType === POPUP_TYPE_IDS.BOTTOM_SLIDE_UP
+  const isBottomSlideIcon =
+    state.popupType === POPUP_TYPE_IDS.BOTTOM_SLIDE_UP_ICON
   const slideImages = state.slideImages || []
   const slideModal11Norm = normalizeSlideModal11Images(state.slideImages)
   const slideModal11SlotKeys = normalizeSlideModal11SlotKeys(
     state.slideImages,
     state.slideImagesSlotKeys
   )
-  const slideCount = isSlideModal11 ? slideModal11Norm.length : slideImages.length
+  const slideCount = isSlideModalAutoSquare ? slideModal11Norm.length : slideImages.length
   const slideVerticalImages = normalizeSlideVerticalImages(state.slideVerticalImages)
   const slideVerticalSlotKeys = normalizeSlideVerticalSlotKeys(
     state.slideVerticalImages,
     state.slideVerticalSlotKeys
   )
+
+  const copyPanelIssues = useMemo(() => {
+    if (!copyValidationHintsVisible) return EMPTY_COPY_HTML_PANEL_ISSUES
+    return getCopyHtmlPanelIssues(state)
+  }, [state, copyValidationHintsVisible])
 
   const handleFileChange = (e) => {
     const file = e.target.files?.[0]
@@ -635,15 +939,28 @@ export default function ControlPanel({
 
   const bumpSlidePreview = (delta) => {
     if (!slideCount) return
+    if (slideCount > 1) {
+      const maxIdx = slideCount - 1
+      const cur = state.slidePreviewIndex ?? 0
+      let next = cur + delta
+      if (next > maxIdx) next = 0
+      else if (next < 0) next = maxIdx
+      update('slidePreviewIndex', next)
+      return
+    }
     const cur = state.slidePreviewIndex ?? 0
     const next = Math.min(slideCount - 1, Math.max(0, cur + delta))
     update('slidePreviewIndex', next)
   }
 
   const bumpSlideVerticalPreview = (delta) => {
-    const maxIdx = Math.max(0, slideVerticalImages.length - 1)
+    const n = slideVerticalImages.length
+    if (n === 0) return
+    const maxIdx = n - 1
     const cur = state.slideVerticalPreviewIndex ?? 0
-    const next = Math.min(maxIdx, Math.max(0, cur + delta))
+    let next = cur + delta
+    if (next > maxIdx) next = 0
+    else if (next < 0) next = maxIdx
     update('slideVerticalPreviewIndex', next)
   }
 
@@ -664,14 +981,37 @@ export default function ControlPanel({
   }
 
   const handleBgColorChange = (which, hex) => {
-    const meets = meetsContrastWithWhite(hex, MIN_CONTRAST)
+    const textHex = isChoiceButtonTextWhite(state[which]?.textColor)
+      ? CHOICE_BTN_TEXT_WHITE
+      : CHOICE_BTN_TEXT_BLACK
+    const meets = meetsContrastBetween(hex, textHex, CHOICE_BUTTON_MIN_CONTRAST)
     if (!meets) {
       setContrastWarning((w) => ({ ...w, [which]: true }))
-      const corrected = ensureContrastWithWhite(hex, MIN_CONTRAST)
+      const corrected = isChoiceButtonTextWhite(textHex)
+        ? ensureContrastWithWhite(hex, CHOICE_BUTTON_MIN_CONTRAST)
+        : ensureContrastWithBlack(hex, CHOICE_BUTTON_MIN_CONTRAST)
       updateButton(which, 'bgColor', corrected)
     } else {
       setContrastWarning((w) => ({ ...w, [which]: false }))
       updateButton(which, 'bgColor', hex)
+    }
+  }
+
+  const handleChoiceButtonTextColor = (which, useWhite) => {
+    if (!isChoiceButtonModalType(state.popupType)) return
+    const textHex = useWhite ? CHOICE_BTN_TEXT_WHITE : CHOICE_BTN_TEXT_BLACK
+    const w = which
+    const bg = state[w]?.bgColor ?? '#000000'
+    if (!meetsContrastBetween(bg, textHex, CHOICE_BUTTON_MIN_CONTRAST)) {
+      setContrastWarning((warn) => ({ ...warn, [w]: true }))
+      const corrected = useWhite
+        ? ensureContrastWithWhite(bg, CHOICE_BUTTON_MIN_CONTRAST)
+        : ensureContrastWithBlack(bg, CHOICE_BUTTON_MIN_CONTRAST)
+      updateButton(w, 'textColor', textHex)
+      updateButton(w, 'bgColor', corrected)
+    } else {
+      setContrastWarning((warn) => ({ ...warn, [w]: false }))
+      updateButton(w, 'textColor', textHex)
     }
   }
 
@@ -787,7 +1127,7 @@ export default function ControlPanel({
   }, [])
 
   return (
-    <div className="flex h-full min-h-0 flex-1 flex-col">
+    <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col w-full max-w-full">
       <div className="shrink-0 border-b border-zinc-800/90 bg-zinc-950/50 px-5 pb-5 pt-5">
         <PopupTypePicker
           popupType={state.popupType}
@@ -803,27 +1143,24 @@ export default function ControlPanel({
         />
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+      <div className={`${PANEL_SETTINGS_SCROLL_CLASS} min-h-0 min-w-0 flex-1 w-full max-w-full`}>
       <div className="py-2">
       {isSmvCarousel ? (
         <>
           <Section
             title={`${tr.smvGroupImage || 'Image'} ${tr.smvCarouselSlotRange ?? '(min 3 — max 6)'}`}
           >
-            <div className="space-y-4">
+            <PanelImageSizeGuide text={resolvePanelImageSizeGuide(tr, state)} />
+            <div
+              className={`space-y-4 ${
+                copyPanelIssues.carouselMinImages ? PANEL_SECTION_WARN_RING_CLASS : ''
+              }`}
+            >
               <LayoutGroup id="smv-slide-rows">
               <ul className="space-y-3">
                 {slideVerticalImages.map((src, i) => (
-                  <motion.li
+                  <li
                     key={slideVerticalSlotKeys[i]}
-                    layout={!smvDrag}
-                    initial={false}
-                    transition={{
-                      type: 'spring',
-                      stiffness: 420,
-                      damping: 34,
-                      mass: 0.82,
-                    }}
                     ref={(el) => {
                       smvRowRefs.current[i] = el
                     }}
@@ -833,7 +1170,12 @@ export default function ControlPanel({
                         : PANEL_SLIDE_CARD_BORDER_IDLE
                     }`}
                   >
-                    <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-2">
+                    <motion.div
+                      layout={!smvDrag}
+                      initial={false}
+                      transition={PANEL_SLIDE_LIST_LAYOUT_TRANSITION}
+                      className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-2"
+                    >
                       <div
                         onPointerDown={(e) => handleSmvHandlePointerDown(i, e)}
                         className="flex items-center justify-center self-center shrink-0 cursor-grab touch-none rounded p-0.5 text-zinc-500 hover:bg-zinc-700/80 hover:text-zinc-300 active:cursor-grabbing [-webkit-touch-callout:none]"
@@ -859,67 +1201,37 @@ export default function ControlPanel({
                           />
                         ) : null}
                       </div>
-                      <div className="col-start-2 flex flex-row flex-nowrap items-start gap-x-3 w-full min-w-0">
-                          <div className="flex flex-col gap-1.5 shrink-0">
-                            <Label htmlFor={`smv-slot-upload-${i}`}>
-                              {tr.imageUpload || '이미지 업로드'}
-                            </Label>
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <button
-                                id={`smv-slot-upload-${i}`}
-                                type="button"
-                                onClick={() => smvSlotFileRefs[i].current?.click()}
-                                className={IMAGE_ROW_FILE_BUTTON_CLASS}
-                              >
-                                {tr.chooseFile || '파일 선택'}
-                              </button>
-                              <input
-                                ref={smvSlotFileRefs[i]}
-                                id={`smv-slot-${i}`}
-                                type="file"
-                                accept="image/*"
-                                className="hidden"
-                                onChange={(e) => {
-                                  const f = e.target.files?.[0]
-                                  e.target.value = ''
-                                  if (f) setSlideVerticalSlot(i, f)
-                                }}
-                              />
-                              {src ? (
-                                <button
-                                  type="button"
-                                  onClick={() => setSlideVerticalSlot(i, null)}
-                                  className="px-2 py-1.5 rounded text-xs text-red-400 hover:bg-red-950/50 border border-red-900/40 whitespace-nowrap"
-                                >
-                                  {tr.slideRemove || '삭제'}
-                                </button>
-                              ) : null}
-                            </div>
-                          </div>
-                          <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-                            <Label htmlFor={`smv-url-${i}`}>{tr.imageUrl || '이미지 URL'}</Label>
-                            <ImageUrlApplyField
-                              id={`smv-url-${i}`}
-                              onSubmit={handleSmvSlotUrlSubmit(i)}
-                              submitLabel={tr.apply || '적용'}
-                            />
-                          </div>
-                        </div>
-                      {src ? (
-                        <img
+                      <div className="col-start-2 flex flex-col gap-2 w-full min-w-0">
+                        <PanelImagePreviewSlot
                           src={src}
-                          alt=""
-                          className="col-start-2 w-full max-h-24 rounded object-contain bg-zinc-900"
+                          fileInputRef={smvSlotFileRefs[i]}
+                          inputId={`smv-slot-${i}`}
+                          onFileChange={(e) => {
+                            const f = e.target.files?.[0]
+                            e.target.value = ''
+                            if (f) setSlideVerticalSlot(i, f)
+                          }}
+                          emptyLabel={tr.noImage || '이미지 없음'}
+                          chooseFileLabel={tr.chooseFile || '파일 선택'}
+                          removeLabel={tr.slideRemove || '삭제'}
+                          onRemove={() => setSlideVerticalSlot(i, null)}
+                          emptyClassName="w-full"
                         />
-                      ) : (
-                        <div
-                          className={`col-start-2 ${PANEL_IMAGE_EMPTY_PLACEHOLDER_CLASS}`}
-                        >
-                          {tr.noImage || '배경 이미지 없음'}
-                        </div>
-                      )}
-                    </div>
-                  </motion.li>
+                        <ImageUrlApplyField
+                          id={`smv-url-${i}`}
+                          onSubmit={handleSmvSlotUrlSubmit(i)}
+                          submitLabel={tr.apply || '적용'}
+                          warnEmpty={
+                            tr.imageUrlRequiredWarning ?? 'Please enter a URL.'
+                          }
+                          warnInvalid={
+                            tr.imageUrlInvalidWarning ??
+                            'Enter a valid URL starting with http:// or https://.'
+                          }
+                        />
+                      </div>
+                    </motion.div>
+                  </li>
                 ))}
               </ul>
               {smvDrag && typeof document !== 'undefined'
@@ -953,14 +1265,6 @@ export default function ControlPanel({
                             {tr.smvSlotLabel?.replace('{n}', String(smvDrag.fromIndex + 1)) ||
                               `슬라이드 ${smvDrag.fromIndex + 1}`}
                           </p>
-                          <div className="flex flex-row flex-nowrap items-start gap-x-3 w-full min-w-0 opacity-90">
-                            <span className="text-[11px] text-zinc-500 shrink-0">
-                              {tr.imageUpload || '이미지 업로드'}
-                            </span>
-                            <span className="text-[11px] text-zinc-500 truncate">
-                              {tr.imageUrl || '이미지 URL'}
-                            </span>
-                          </div>
                           {slideVerticalImages[smvDrag.fromIndex] ? (
                             <img
                               src={slideVerticalImages[smvDrag.fromIndex]}
@@ -968,7 +1272,11 @@ export default function ControlPanel({
                               className="w-full max-h-24 rounded object-contain bg-zinc-900"
                             />
                           ) : (
-                            <div className={PANEL_IMAGE_EMPTY_PLACEHOLDER_CLASS}>{tr.noImage || '배경 이미지 없음'}</div>
+                            <div className="rounded-lg border border-zinc-600/60 bg-zinc-950/25 py-2">
+                              <div className="flex h-11 w-full items-center justify-center text-xs text-zinc-500">
+                                {tr.noImage || '이미지 없음'}
+                              </div>
+                            </div>
                           )}
                         </div>
                       </div>
@@ -1012,10 +1320,21 @@ export default function ControlPanel({
                 </div>
               </div>
             </div>
+            {copyPanelIssues.carouselMinImages ? (
+              <p className={PANEL_COPY_VALIDATE_MSG_CLASS}>
+                {formatCopyHtmlToastMessage(tr.copyHtmlToastMinImages, {
+                  n: SLIDE_MODAL_VERTICAL_MIN_IMAGES,
+                })}
+              </p>
+            ) : null}
           </Section>
           <Section title={tr.sectionContent || 'Content'}>
             <div className="flex flex-col gap-4">
-              <div className="flex flex-col gap-2">
+              <div
+                className={`flex flex-col gap-2 ${
+                  copyPanelIssues.title ? PANEL_SECTION_WARN_RING_CLASS : ''
+                }`}
+              >
                 <TwoLineOverflowField
                   id="smv-title"
                   label={tr.smvTitleLabel || '제목'}
@@ -1031,12 +1350,12 @@ export default function ControlPanel({
                   previewClampWidth={SMV_COLUMN_W}
                   maxLinesWarnMessage={tr.smvTitleMaxTwoLinesWarn}
                 />
-                {!(state.slideVerticalTitle ?? '').trim() ? (
-                  <p className={PANEL_WARN_SIBLING_CLASS}>
-                    {tr.smvTitleRequiredWarning || '제목을 입력해 주세요.'}
-                  </p>
-                ) : null}
               </div>
+              {copyPanelIssues.title ? (
+                <p className={PANEL_COPY_VALIDATE_MSG_CLASS}>
+                  {tr.copyHtmlToastTitleRequired}
+                </p>
+              ) : null}
               <div className="flex flex-col gap-2">
                 <TwoLineOverflowField
                   id="smv-desc"
@@ -1053,14 +1372,13 @@ export default function ControlPanel({
                   previewClampWidth={SMV_COLUMN_W}
                   maxLinesWarnMessage={tr.smvDescMaxTwoLinesWarn}
                 />
-                {!(state.slideVerticalDescription ?? '').trim() ? (
-                  <p className={PANEL_WARN_SIBLING_CLASS}>
-                    {tr.smvDescRequiredWarning || '설명을 입력해 주세요.'}
-                  </p>
-                ) : null}
               </div>
               <div className="space-y-4">
-                <div>
+                <div
+                  className={
+                    copyPanelIssues.smvButton ? PANEL_SECTION_WARN_RING_CLASS : ''
+                  }
+                >
                   <Label htmlFor="smv-btn">{tr.smvBtnLabel || 'Button text'}</Label>
                   <ButtonLabelTextField
                     id="smv-btn"
@@ -1072,6 +1390,11 @@ export default function ControlPanel({
                   />
                 </div>
               </div>
+              {copyPanelIssues.smvButton ? (
+                <p className={PANEL_COPY_VALIDATE_MSG_CLASS}>
+                  {tr.copyHtmlToastButtonRequired}
+                </p>
+              ) : null}
             </div>
           </Section>
         </>
@@ -1079,38 +1402,46 @@ export default function ControlPanel({
         <>
           {(state.simpleIconVariant ?? SIMPLE_ICON_VARIANT_THUMB) === SIMPLE_ICON_VARIANT_THUMB ? (
             <Section title={tr.simpleIconSectionThumbImage || 'Image'}>
-              <div className="flex flex-row flex-wrap gap-x-4 gap-y-3 items-start">
-                <div className="flex flex-col gap-1.5 shrink-0">
-                  <Label htmlFor="simple-thumb-file">{tr.imageUpload || '이미지 업로드'}</Label>
-                  <button
-                    id="simple-thumb-file"
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className={IMAGE_ROW_FILE_BUTTON_CLASS}
-                  >
-                    {tr.chooseFile || '파일 선택'}
-                  </button>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={handleFileChange}
-                  />
-                </div>
-                <div className="flex flex-col gap-1.5 flex-1 min-w-[200px]">
-                  <Label htmlFor="simple-thumb-url">{tr.imageUrl || '이미지 URL'}</Label>
-                  <ImageUrlApplyField
-                    id="simple-thumb-url"
-                    onSubmit={handleUrlSubmit}
-                    submitLabel={tr.apply || '적용'}
-                  />
-                </div>
+              <PanelImageSizeGuide text={resolvePanelImageSizeGuide(tr, state)} />
+              <div
+                className={`flex flex-col gap-2 ${
+                  copyPanelIssues.uploadImage ? PANEL_SECTION_WARN_RING_CLASS : ''
+                }`}
+              >
+                <PanelImagePreviewSlot
+                  src={state.imageSource}
+                  fileInputRef={fileInputRef}
+                  inputId="simple-thumb-file"
+                  onFileChange={handleFileChange}
+                  emptyLabel={tr.noImage || '이미지 없음'}
+                  chooseFileLabel={tr.chooseFile || '파일 선택'}
+                  removeLabel={tr.slideRemove || '삭제'}
+                  onRemove={() => setImage(null, null)}
+                  emptyClassName="w-full"
+                />
+                <ImageUrlApplyField
+                  id="simple-thumb-url"
+                  onSubmit={handleUrlSubmit}
+                  submitLabel={tr.apply || '적용'}
+                  warnEmpty={
+                    tr.imageUrlRequiredWarning ?? 'Please enter a URL.'
+                  }
+                  warnInvalid={
+                    tr.imageUrlInvalidWarning ??
+                    'Enter a valid URL starting with http:// or https://.'
+                  }
+                />
               </div>
+              {copyPanelIssues.uploadImage ? (
+                <p className={PANEL_COPY_VALIDATE_MSG_CLASS}>
+                  {tr.copyHtmlToastUploadImage}
+                </p>
+              ) : null}
             </Section>
           ) : (
             <Section title={tr.simpleIconSectionIcon || 'Icon'}>
-              <div className="grid grid-cols-3 gap-3">
+              <PanelImageSizeGuide text={resolvePanelImageSizeGuide(tr, state)} />
+              <div className="grid grid-cols-4 gap-3">
                 {SIMPLE_ICON_PRESETS.map((p) => {
                   const sel = (state.simpleIconPresetId ?? 'gift') === p.id
                   return (
@@ -1140,7 +1471,11 @@ export default function ControlPanel({
           )}
           <Section title={tr.sectionContent || 'Content'}>
             <div className="flex flex-col gap-4">
-              <div className="flex flex-col gap-2">
+              <div
+                className={`flex flex-col gap-2 ${
+                  copyPanelIssues.title ? PANEL_SECTION_WARN_RING_CLASS : ''
+                }`}
+              >
                 <TwoLineOverflowField
                   id="simple-icon-title"
                   label={tr.smvTitleLabel || '제목'}
@@ -1156,12 +1491,12 @@ export default function ControlPanel({
                   previewClampWidth={SMV_COLUMN_W}
                   maxLinesWarnMessage={tr.smvTitleMaxTwoLinesWarn}
                 />
-                {!(state.slideVerticalTitle ?? '').trim() ? (
-                  <p className={PANEL_WARN_SIBLING_CLASS}>
-                    {tr.smvTitleRequiredWarning || '제목을 입력해 주세요.'}
-                  </p>
-                ) : null}
               </div>
+              {copyPanelIssues.title ? (
+                <p className={PANEL_COPY_VALIDATE_MSG_CLASS}>
+                  {tr.copyHtmlToastTitleRequired}
+                </p>
+              ) : null}
               <div className="flex flex-col gap-2">
                 <TwoLineOverflowField
                   id="simple-icon-desc"
@@ -1178,14 +1513,13 @@ export default function ControlPanel({
                   previewClampWidth={SMV_COLUMN_W}
                   maxLinesWarnMessage={tr.smvDescMaxTwoLinesWarn}
                 />
-                {!(state.slideVerticalDescription ?? '').trim() ? (
-                  <p className={PANEL_WARN_SIBLING_CLASS}>
-                    {tr.smvDescRequiredWarning || '설명을 입력해 주세요.'}
-                  </p>
-                ) : null}
               </div>
               <div className="space-y-4">
-                <div>
+                <div
+                  className={
+                    copyPanelIssues.smvButton ? PANEL_SECTION_WARN_RING_CLASS : ''
+                  }
+                >
                   <Label htmlFor="simple-icon-btn">{tr.smvBtnLabel || 'Button text'}</Label>
                   <ButtonLabelTextField
                     id="simple-icon-btn"
@@ -1197,6 +1531,11 @@ export default function ControlPanel({
                   />
                 </div>
               </div>
+              {copyPanelIssues.smvButton ? (
+                <p className={PANEL_COPY_VALIDATE_MSG_CLASS}>
+                  {tr.copyHtmlToastButtonRequired}
+                </p>
+              ) : null}
             </div>
           </Section>
         </>
@@ -1228,78 +1567,137 @@ export default function ControlPanel({
               </button>
             </div>
           </Section>
-          <Section title={tr.sectionBg || '이미지'}>
-            <div className="flex flex-row flex-wrap gap-x-4 gap-y-3 items-start">
-              <div className="flex flex-col gap-1.5 shrink-0">
-                <Label htmlFor="bsu-file">{tr.imageUpload || '이미지 업로드'}</Label>
-                <button
-                  id="bsu-file"
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className={IMAGE_ROW_FILE_BUTTON_CLASS}
-                >
-                  {tr.chooseFile || '파일 선택'}
-                </button>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={handleFileChange}
+          {isBottomSlideCharacter && (
+            <Section title={tr.sectionBg || '이미지'}>
+              <PanelImageSizeGuide text={resolvePanelImageSizeGuide(tr, state)} />
+              <div
+                className={`flex flex-col gap-2 ${
+                  copyPanelIssues.uploadImage ? PANEL_SECTION_WARN_RING_CLASS : ''
+                }`}
+              >
+                <PanelImagePreviewSlot
+                  src={state.imageSource}
+                  fileInputRef={fileInputRef}
+                  inputId="bsu-file"
+                  onFileChange={handleFileChange}
+                  emptyLabel={tr.noImage || '이미지 없음'}
+                  chooseFileLabel={tr.chooseFile || '파일 선택'}
+                  removeLabel={tr.slideRemove || '삭제'}
+                  onRemove={() => setImage(null, null)}
+                  emptyClassName="w-full"
                 />
-              </div>
-              <div className="flex flex-col gap-1.5 flex-1 min-w-[200px]">
-                <Label htmlFor="bsu-url">{tr.imageUrl || '이미지 URL'}</Label>
                 <ImageUrlApplyField
                   id="bsu-url"
                   onSubmit={handleUrlSubmit}
                   submitLabel={tr.apply || '적용'}
+                  warnEmpty={
+                    tr.imageUrlRequiredWarning ?? 'Please enter a URL.'
+                  }
+                  warnInvalid={
+                    tr.imageUrlInvalidWarning ??
+                    'Enter a valid URL starting with http:// or https://.'
+                  }
                 />
               </div>
+              {copyPanelIssues.uploadImage ? (
+                <p className={PANEL_COPY_VALIDATE_MSG_CLASS}>
+                  {tr.copyHtmlToastUploadImage}
+                </p>
+              ) : null}
+            </Section>
+          )}
+          {isBottomSlideIcon && (
+            <Section title={tr.simpleIconSectionIcon || 'Icon'}>
+              <PanelImageSizeGuide text={resolvePanelImageSizeGuide(tr, state)} />
+              <div className="grid grid-cols-4 gap-3">
+                {SIMPLE_ICON_PRESETS.map((p) => {
+                  const sel =
+                    (state.bottomSlideUpIconPresetId ?? 'gift') === p.id
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() =>
+                        update('bottomSlideUpIconPresetId', p.id)
+                      }
+                      className={`group rounded-lg border p-2 flex flex-col items-center justify-center gap-3 min-h-[88px] transition-colors ${
+                        sel
+                          ? 'border-transparent bg-brand/25 ring-1 ring-brand/35'
+                          : 'border-zinc-700 bg-surface-800/50 hover:border-zinc-600'
+                      }`}
+                    >
+                      <img
+                        src={p.src}
+                        alt=""
+                        className="w-[70px] h-[70px] object-contain shrink-0"
+                      />
+                      <span
+                        className={`text-[11px] leading-tight text-center px-0.5 line-clamp-2 font-semibold ${
+                          sel
+                            ? 'text-white'
+                            : 'text-zinc-400 group-hover:text-zinc-200'
+                        }`}
+                      >
+                        {tr[p.labelKey] ?? p.id}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+            </Section>
+          )}
+          <Section title={tr.bottomSlideContentSectionTitle ?? 'Content'}>
+            <div
+              className={
+                copyPanelIssues.bottomSlideText ? PANEL_SECTION_WARN_RING_CLASS : ''
+              }
+            >
+              <TwoLineOverflowField
+                id="bsu-desc"
+                label={tr.text ?? 'Text'}
+                value={state.bottomSlideUpText ?? ''}
+                onChange={(v) => update('bottomSlideUpText', v)}
+                heightPx={36}
+                lineHeightPx={18}
+                fontSizePx={13}
+                fontWeight={500}
+                textAlign="left"
+                fontFamily={SMV_PREVIEW_FONT}
+                maxLines={2}
+                previewClampWidth={getBottomSlideUpTextClampWidth(
+                  state.popupType
+                )}
+                maxLinesWarnMessage={tr.bottomSlideMaxTwoLinesWarn}
+              />
             </div>
-          </Section>
-          <Section title={tr.bottomSlideDescriptionLabel ?? '설명'}>
-            <TwoLineOverflowField
-              id="bsu-desc"
-              label={tr.bottomSlideDescriptionLabel ?? '설명'}
-              value={state.bottomSlideUpText ?? ''}
-              onChange={(v) => update('bottomSlideUpText', v)}
-              heightPx={36}
-              lineHeightPx={18}
-              fontSizePx={13}
-              fontWeight={500}
-              textAlign="left"
-              fontFamily={SMV_PREVIEW_FONT}
-              maxLines={2}
-              previewClampWidth={BOTTOM_SLIDE_UP_TEXT_CLAMP_W}
-              maxLinesWarnMessage={tr.bottomSlideMaxTwoLinesWarn}
-            />
+            {copyPanelIssues.bottomSlideText ? (
+              <p className={PANEL_COPY_VALIDATE_MSG_CLASS}>
+                {tr.copyHtmlToastBottomSlideTextRequired}
+              </p>
+            ) : null}
           </Section>
         </>
       ) : (
         <Section
           title={
-            isSlideModal11
+            isSlideModalAutoSquare
               ? tr.slideModal11SectionImageTitle || '이미지 (최소 2장, 최대 6장)'
               : tr.sectionBg || '이미지'
           }
         >
-          <div className="space-y-4">
-            {isSlideModal11 ? (
+          <PanelImageSizeGuide text={resolvePanelImageSizeGuide(tr, state)} />
+          <div
+            className={`space-y-4 ${
+              copyPanelIssues.slide11MinImages ? PANEL_SECTION_WARN_RING_CLASS : ''
+            }`}
+          >
+            {isSlideModalAutoSquare ? (
               <>
                 <LayoutGroup id="slide11-slide-rows">
                   <ul className="space-y-3">
                     {slideModal11Norm.map((src, i) => (
-                      <motion.li
+                      <li
                         key={slideModal11SlotKeys[i]}
-                        layout={!slide11Drag}
-                        initial={false}
-                        transition={{
-                          type: 'spring',
-                          stiffness: 420,
-                          damping: 34,
-                          mass: 0.82,
-                        }}
                         ref={(el) => {
                           slide11RowRefs.current[i] = el
                         }}
@@ -1311,7 +1709,12 @@ export default function ControlPanel({
                             : PANEL_SLIDE_CARD_BORDER_IDLE
                         }`}
                       >
-                        <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-2">
+                        <motion.div
+                          layout={!slide11Drag}
+                          initial={false}
+                          transition={PANEL_SLIDE_LIST_LAYOUT_TRANSITION}
+                          className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-2"
+                        >
                           <div
                             onPointerDown={(e) => handleSlide11HandlePointerDown(i, e)}
                             className="flex items-center justify-center self-center shrink-0 cursor-grab touch-none rounded p-0.5 text-zinc-500 hover:bg-zinc-700/80 hover:text-zinc-300 active:cursor-grabbing [-webkit-touch-callout:none]"
@@ -1337,67 +1740,38 @@ export default function ControlPanel({
                               />
                             ) : null}
                           </div>
-                          <div className="col-start-2 flex flex-row flex-nowrap items-start gap-x-3 w-full min-w-0">
-                              <div className="flex flex-col gap-1.5 shrink-0">
-                                <Label htmlFor={`slide11-slot-upload-${i}`}>
-                                  {tr.imageUpload || '이미지 업로드'}
-                                </Label>
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <button
-                                    id={`slide11-slot-upload-${i}`}
-                                    type="button"
-                                    onClick={() => slide11SlotFileRefs[i].current?.click()}
-                                    className={IMAGE_ROW_FILE_BUTTON_CLASS}
-                                  >
-                                    {tr.chooseFile || '파일 선택'}
-                                  </button>
-                                  <input
-                                    ref={slide11SlotFileRefs[i]}
-                                    id={`slide11-slot-${i}`}
-                                    type="file"
-                                    accept="image/*"
-                                    className="hidden"
-                                    onChange={(e) => {
-                                      const f = e.target.files?.[0]
-                                      e.target.value = ''
-                                      if (f) setSlideModal11Slot(i, f)
-                                    }}
-                                  />
-                                  {src ? (
-                                    <button
-                                      type="button"
-                                      onClick={() => setSlideModal11Slot(i, null)}
-                                      className="px-2 py-1.5 rounded text-xs text-red-400 hover:bg-red-950/50 border border-red-900/40 whitespace-nowrap"
-                                    >
-                                      {tr.slideRemove || '삭제'}
-                                    </button>
-                                  ) : null}
-                                </div>
-                              </div>
-                              <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-                                <Label htmlFor={`slide11-url-${i}`}>{tr.imageUrl || '이미지 URL'}</Label>
-                                <ImageUrlApplyField
-                                  id={`slide11-url-${i}`}
-                                  onSubmit={handleSlide11SlotUrlSubmit(i)}
-                                  submitLabel={tr.apply || '적용'}
-                                />
-                              </div>
-                            </div>
-                          {src ? (
-                            <img
+                          <div className="col-start-2 flex flex-col gap-2 w-full min-w-0">
+                            <PanelImagePreviewSlot
                               src={src}
-                              alt=""
-                              className="col-start-2 w-full max-h-24 rounded object-contain bg-zinc-900"
+                              fileInputRef={slide11SlotFileRefs[i]}
+                              inputId={`slide11-slot-${i}`}
+                              onFileChange={(e) => {
+                                const f = e.target.files?.[0]
+                                e.target.value = ''
+                                if (f) setSlideModal11Slot(i, f)
+                              }}
+                              emptyLabel={tr.noImage || '이미지 없음'}
+                              chooseFileLabel={tr.chooseFile || '파일 선택'}
+                              removeLabel={tr.slideRemove || '삭제'}
+                              onRemove={() => setSlideModal11Slot(i, null)}
+                              emptyClassName="w-full"
                             />
-                          ) : (
-                            <div
-                              className={`col-start-2 ${PANEL_IMAGE_EMPTY_PLACEHOLDER_CLASS}`}
-                            >
-                              {tr.noImage || '배경 이미지 없음'}
-                            </div>
-                          )}
-                        </div>
-                      </motion.li>
+                            <ImageUrlApplyField
+                              id={`slide11-url-${i}`}
+                              onSubmit={handleSlide11SlotUrlSubmit(i)}
+                              submitLabel={tr.apply || '적용'}
+                              warnEmpty={
+                                tr.imageUrlRequiredWarning ??
+                                'Please enter a URL.'
+                              }
+                              warnInvalid={
+                                tr.imageUrlInvalidWarning ??
+                                'Enter a valid URL starting with http:// or https://.'
+                              }
+                            />
+                          </div>
+                        </motion.div>
+                      </li>
                     ))}
                   </ul>
                   {slide11Drag && typeof document !== 'undefined'
@@ -1431,14 +1805,6 @@ export default function ControlPanel({
                                 {tr.smvSlotLabel?.replace('{n}', String(slide11Drag.fromIndex + 1)) ||
                                   `슬라이드 ${slide11Drag.fromIndex + 1}`}
                               </p>
-                              <div className="flex flex-row flex-nowrap items-start gap-x-3 w-full min-w-0 opacity-90">
-                                <span className="text-[11px] text-zinc-500 shrink-0">
-                                  {tr.imageUpload || '이미지 업로드'}
-                                </span>
-                                <span className="text-[11px] text-zinc-500 truncate">
-                                  {tr.imageUrl || '이미지 URL'}
-                                </span>
-                              </div>
                               {slideModal11Norm[slide11Drag.fromIndex] ? (
                                 <img
                                   src={slideModal11Norm[slide11Drag.fromIndex]}
@@ -1446,7 +1812,11 @@ export default function ControlPanel({
                                   className="w-full max-h-24 rounded object-contain bg-zinc-900"
                                 />
                               ) : (
-                                <div className={PANEL_IMAGE_EMPTY_PLACEHOLDER_CLASS}>{tr.noImage || '배경 이미지 없음'}</div>
+                                <div className="rounded-lg border border-zinc-600/60 bg-zinc-950/25 py-2">
+                              <div className="flex h-11 w-full items-center justify-center text-xs text-zinc-500">
+                                {tr.noImage || '이미지 없음'}
+                              </div>
+                            </div>
                               )}
                             </div>
                           </div>
@@ -1490,40 +1860,53 @@ export default function ControlPanel({
                 </div>
               </>
             ) : (
-              <div className="flex flex-row flex-wrap gap-x-4 gap-y-3 items-start">
-                <div className="flex flex-col gap-1.5 shrink-0">
-                  <Label htmlFor="popup-bg-file">{tr.imageUpload || '이미지 업로드'}</Label>
-                  <button
-                    id="popup-bg-file"
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className={IMAGE_ROW_FILE_BUTTON_CLASS}
-                  >
-                    {tr.chooseFile || '파일 선택'}
-                  </button>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={handleFileChange}
-                  />
-                </div>
-                <div className="flex flex-col gap-1.5 flex-1 min-w-[200px]">
-                  <Label htmlFor="popup-bg-url">{tr.imageUrl || '이미지 URL'}</Label>
-                  <ImageUrlApplyField
-                    id="popup-bg-url"
-                    onSubmit={handleUrlSubmit}
-                    submitLabel={tr.apply || '적용'}
-                  />
-                </div>
+              <div
+                className={`flex flex-col gap-2 ${
+                  copyPanelIssues.uploadImage ? PANEL_SECTION_WARN_RING_CLASS : ''
+                }`}
+              >
+                <PanelImagePreviewSlot
+                  src={state.imageSource}
+                  fileInputRef={fileInputRef}
+                  inputId="popup-bg-file"
+                  onFileChange={handleFileChange}
+                  emptyLabel={tr.noImage || '이미지 없음'}
+                  chooseFileLabel={tr.chooseFile || '파일 선택'}
+                  removeLabel={tr.slideRemove || '삭제'}
+                  onRemove={() => setImage(null, null)}
+                  emptyClassName="w-full"
+                />
+                <ImageUrlApplyField
+                  id="popup-bg-url"
+                  onSubmit={handleUrlSubmit}
+                  submitLabel={tr.apply || '적용'}
+                  warnEmpty={
+                    tr.imageUrlRequiredWarning ?? 'Please enter a URL.'
+                  }
+                  warnInvalid={
+                    tr.imageUrlInvalidWarning ??
+                    'Enter a valid URL starting with http:// or https://.'
+                  }
+                />
               </div>
             )}
           </div>
+          {isSlideModalAutoSquare && copyPanelIssues.slide11MinImages ? (
+            <p className={PANEL_COPY_VALIDATE_MSG_CLASS}>
+              {formatCopyHtmlToastMessage(tr.copyHtmlToastMinImages, {
+                n: SLIDE_MODAL_11_MIN_IMAGES,
+              })}
+            </p>
+          ) : null}
+          {!isSlideModalAutoSquare && copyPanelIssues.uploadImage ? (
+            <p className={PANEL_COPY_VALIDATE_MSG_CLASS}>
+              {tr.copyHtmlToastUploadImage}
+            </p>
+          ) : null}
         </Section>
       )}
 
-      {!isSlideModal11 && !isSmvCarousel && !isSimpleIconModal && !isBottomSlideUp && (
+      {!isSlideModalAutoSquare && !isSmvCarousel && !isSimpleIconModal && !isBottomSlideUp && (
         <Section title={tr.sectionButtons || '버튼'}>
           <div className="space-y-4">
             <div
@@ -1571,41 +1954,95 @@ export default function ControlPanel({
 
             {state.buttonCount >= 1 && (
               <>
-                <div className="mt-6 space-y-5">
+                <div className="!mt-6 space-y-5">
                   <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
                     {tr.sectionButton1 || 'Button 1'}
                   </p>
                   <div className="space-y-5">
-                    <div>
+                    <div
+                      className={
+                        copyPanelIssues.choiceButton1 ? PANEL_SECTION_WARN_RING_CLASS : ''
+                      }
+                    >
                       <Label>{tr.text || '텍스트'}</Label>
-                      <ButtonLabelTextField
-                        id="choice-btn1-label"
-                        value={state.button1.label}
-                        onChange={(v) => updateButton('button1', 'label', v)}
-                        popupType={state.popupType}
-                        buttonCount={state.buttonCount ?? 1}
-                        warnMessage={tr.buttonLabelOneLineWarn}
-                      />
+                      {isChoiceButtonModalType(state.popupType) ? (
+                        <div className="flex items-center gap-2 min-w-0">
+                          <ChoiceButtonTextSwatches
+                            textColor={state.button1?.textColor}
+                            ariaGroupLabel={
+                              tr.buttonTextColorAria ??
+                              tr.buttonTextColor ??
+                              ''
+                            }
+                            ariaWhite={tr.buttonTextColorWhite ?? '화이트'}
+                            ariaBlack={tr.buttonTextColorBlack ?? '블랙'}
+                            onWhite={() =>
+                              handleChoiceButtonTextColor('button1', true)
+                            }
+                            onBlack={() =>
+                              handleChoiceButtonTextColor('button1', false)
+                            }
+                          />
+                          <div className="min-w-0 flex-1">
+                            <ButtonLabelTextField
+                              id="choice-btn1-label"
+                              value={state.button1.label}
+                              onChange={(v) =>
+                                updateButton('button1', 'label', v)
+                              }
+                              popupType={state.popupType}
+                              buttonCount={state.buttonCount ?? 1}
+                              warnMessage={tr.buttonLabelOneLineWarn}
+                            />
+                          </div>
+                        </div>
+                      ) : (
+                        <ButtonLabelTextField
+                          id="choice-btn1-label"
+                          value={state.button1.label}
+                          onChange={(v) => updateButton('button1', 'label', v)}
+                          popupType={state.popupType}
+                          buttonCount={state.buttonCount ?? 1}
+                          warnMessage={tr.buttonLabelOneLineWarn}
+                        />
+                      )}
                     </div>
+                    {copyPanelIssues.choiceButton1 ? (
+                      <p className={PANEL_COPY_VALIDATE_MSG_CLASS}>
+                        {tr.copyHtmlToastButtonRequired}
+                      </p>
+                    ) : null}
                     <div>
                       <Label>{tr.bgColor || '배경색'}</Label>
-                      <div className="flex items-center gap-3 flex-wrap">
-                        <input
-                          type="color"
+                      <div className="flex min-w-0 items-center gap-3 flex-nowrap">
+                        <PanelColorPicker
+                          id="btn1-bg-swatch"
+                          companionRef={btn1BgHexWrapRef}
+                          aria-label={tr.bgColor || '배경색'}
                           value={state.button1.bgColor}
-                          onChange={(e) => handleBgColorChange('button1', e.target.value)}
+                          onChange={(hex) => handleBgColorChange('button1', hex)}
                         />
-                        <HexColorTextField
-                          id="btn1-bg-hex"
-                          value={state.button1.bgColor}
-                          onValidHex={(hex) => handleBgColorChange('button1', hex)}
+                        <div ref={btn1BgHexWrapRef} className="shrink-0">
+                          <HexColorTextField
+                            id="btn1-bg-hex"
+                            value={state.button1.bgColor}
+                            onValidHex={(hex) =>
+                              handleBgColorChange('button1', hex)
+                            }
+                          />
+                        </div>
+                        <ContrastFeedback
+                          bgHex={state.button1.bgColor}
+                          textHex={
+                            state.button1?.textColor ?? CHOICE_BTN_TEXT_WHITE
+                          }
                         />
-                        <ContrastFeedback hex={state.button1.bgColor} />
                       </div>
                       {contrastWarning.button1 && (
                         <p className={PANEL_WARN_AFTER_INPUT_CLASS}>
-                          {tr.contrastWarning ||
-                            '흰색 텍스트가 잘 보이지 않는 너무 밝은 색상입니다. 명도 대비 3.1:1 이상이 되도록 자동 보정했습니다.'}
+                          {tr.contrastWarningChoiceButtonBg ||
+                            tr.contrastWarning ||
+                            '버튼 텍스트와의 명도 대비가 3:1 이상이 되도록 배경색을 조정했습니다.'}
                         </p>
                       )}
                     </div>
@@ -1613,41 +2050,114 @@ export default function ControlPanel({
                 </div>
 
                 {state.buttonCount === 2 && (
-                  <div className="mt-8 space-y-5 border-t border-zinc-700 pt-6">
+                  <div className="mt-8 space-y-5 border-t border-zinc-700 pt-4">
                     <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
                       {tr.sectionButton2 || 'Button 2'}
                     </p>
                     <div className="space-y-5">
-                      <div>
+                      <div
+                        className={
+                          copyPanelIssues.choiceButton2 ? PANEL_SECTION_WARN_RING_CLASS : ''
+                        }
+                      >
                         <Label>{tr.text || '텍스트'}</Label>
-                        <ButtonLabelTextField
-                          id="choice-btn2-label"
-                          value={state.button2.label}
-                          onChange={(v) => updateButton('button2', 'label', v)}
-                          popupType={state.popupType}
-                          buttonCount={state.buttonCount ?? 1}
-                          warnMessage={tr.buttonLabelOneLineWarn}
-                        />
+                        {isChoiceButtonModalType(state.popupType) ? (
+                          <div className="flex items-center gap-2 min-w-0">
+                            <ChoiceButtonTextSwatches
+                              textColor={state.button2?.textColor}
+                              ariaGroupLabel={
+                                [
+                                  tr.sectionButton2 || 'Button 2',
+                                  tr.buttonTextColorAria ??
+                                    tr.buttonTextColor ??
+                                    '',
+                                ]
+                                  .filter(Boolean)
+                                  .join(' · ')
+                              }
+                              ariaWhite={
+                                tr.buttonTextColorWhite ?? '화이트'
+                              }
+                              ariaBlack={
+                                tr.buttonTextColorBlack ?? '블랙'
+                              }
+                              onWhite={() =>
+                                handleChoiceButtonTextColor(
+                                  'button2',
+                                  true
+                                )
+                              }
+                              onBlack={() =>
+                                handleChoiceButtonTextColor(
+                                  'button2',
+                                  false
+                                )
+                              }
+                            />
+                            <div className="min-w-0 flex-1">
+                              <ButtonLabelTextField
+                                id="choice-btn2-label"
+                                value={state.button2.label}
+                                onChange={(v) =>
+                                  updateButton('button2', 'label', v)
+                                }
+                                popupType={state.popupType}
+                                buttonCount={state.buttonCount ?? 1}
+                                warnMessage={tr.buttonLabelOneLineWarn}
+                              />
+                            </div>
+                          </div>
+                        ) : (
+                          <ButtonLabelTextField
+                            id="choice-btn2-label"
+                            value={state.button2.label}
+                            onChange={(v) =>
+                              updateButton('button2', 'label', v)
+                            }
+                            popupType={state.popupType}
+                            buttonCount={state.buttonCount ?? 1}
+                            warnMessage={tr.buttonLabelOneLineWarn}
+                          />
+                        )}
                       </div>
+                      {copyPanelIssues.choiceButton2 ? (
+                        <p className={PANEL_COPY_VALIDATE_MSG_CLASS}>
+                          {tr.copyHtmlToastButtonRequired}
+                        </p>
+                      ) : null}
                       <div>
                         <Label>{tr.bgColor || '배경색'}</Label>
-                        <div className="flex items-center gap-3 flex-wrap">
-                          <input
-                            type="color"
+                        <div className="flex min-w-0 items-center gap-3 flex-nowrap">
+                          <PanelColorPicker
+                            id="btn2-bg-swatch"
+                            companionRef={btn2BgHexWrapRef}
+                            aria-label={tr.bgColor || '배경색'}
                             value={state.button2.bgColor}
-                            onChange={(e) => handleBgColorChange('button2', e.target.value)}
+                            onChange={(hex) =>
+                              handleBgColorChange('button2', hex)
+                            }
                           />
-                          <HexColorTextField
-                            id="btn2-bg-hex"
-                            value={state.button2.bgColor}
-                            onValidHex={(hex) => handleBgColorChange('button2', hex)}
+                          <div ref={btn2BgHexWrapRef} className="shrink-0">
+                            <HexColorTextField
+                              id="btn2-bg-hex"
+                              value={state.button2.bgColor}
+                              onValidHex={(hex) =>
+                                handleBgColorChange('button2', hex)
+                              }
+                            />
+                          </div>
+                          <ContrastFeedback
+                            bgHex={state.button2.bgColor}
+                            textHex={
+                              state.button2?.textColor ?? CHOICE_BTN_TEXT_WHITE
+                            }
                           />
-                          <ContrastFeedback hex={state.button2.bgColor} />
                         </div>
                         {contrastWarning.button2 && (
                           <p className={PANEL_WARN_AFTER_INPUT_CLASS}>
-                            {tr.contrastWarning ||
-                              '흰색 텍스트가 잘 보이지 않는 너무 밝은 색상입니다. 명도 대비 3.1:1 이상이 되도록 자동 보정했습니다.'}
+                            {tr.contrastWarningChoiceButtonBg ||
+                              tr.contrastWarning ||
+                              '버튼 텍스트와의 명도 대비가 3:1 이상이 되도록 배경색을 조정했습니다.'}
                           </p>
                         )}
                       </div>

@@ -2,6 +2,8 @@
  * 팝업 타입별 크기·버튼 위치 (기준 너비 352px)
  * 컨테이너: 14px 라운딩 + overflow:hidden (그림자 없음)
  */
+import { getSimpleIconPresetSrc } from './simpleIcon'
+
 export const POPUP_BASE_WIDTH = 352
 
 export const POPUP_CONTAINER_BORDER_RADIUS = 14
@@ -102,15 +104,20 @@ export const POPUP_TYPE_IDS = {
   VERTICAL: 'vertical',
   /** 세로 3:4 (버튼 위치 가이드는 3:5와 동일 — 하단 기준) */
   VERTICAL_3_4: 'vertical_3_4',
-  /** 1:1, 버튼 없음 고정, 우하단 페이지네이션 */
+  /** 1:1, 버튼 없음 고정, 도트 인디케이터 */
   SLIDE_MODAL_1_1: 'slide_modal_1_1',
+  /** 4:5, 슬롯·동작은 SLIDE_MODAL_1_1과 동일 */
+  SLIDE_MODAL_4_5: 'slide_modal_4_5',
   /** 세로형 슬라이드 + 텍스트 + 기본 CTA (Read Now) */
   SLIDE_MODAL_VERTICAL: 'slide_modal_vertical',
   CAROUSEL_THUMB_HORIZONTAL: 'carousel_thumb_horizontal',
   CAROUSEL_SNS: 'carousel_sns',
   CAROUSEL_STORYTELLING: 'carousel_storytelling',
   SIMPLE_ICON_MODAL: 'simple_icon_modal',
+  /** Bottom Slide Up — 왼쪽 썸네일 크게·커버 (기존) */
   BOTTOM_SLIDE_UP: 'bottom_slide_up',
+  /** Bottom Slide Up — 왼쪽 아이콘 크기·contain·원형 */
+  BOTTOM_SLIDE_UP_ICON: 'bottom_slide_up_icon',
 }
 
 /** 설정 패널 · JSON용 표시 이름 */
@@ -119,12 +126,14 @@ export const POPUP_TYPE_DISPLAY_NAME = {
   [POPUP_TYPE_IDS.VERTICAL_3_4]: '3:4',
   [POPUP_TYPE_IDS.VERTICAL]: '3:5',
   [POPUP_TYPE_IDS.SLIDE_MODAL_1_1]: 'Auto Square Slide',
+  [POPUP_TYPE_IDS.SLIDE_MODAL_4_5]: 'Auto Square Slide',
   [POPUP_TYPE_IDS.SLIDE_MODAL_VERTICAL]: 'Vertical',
   [POPUP_TYPE_IDS.CAROUSEL_THUMB_HORIZONTAL]: 'Horizontal',
   [POPUP_TYPE_IDS.CAROUSEL_SNS]: 'SNS Type',
   [POPUP_TYPE_IDS.CAROUSEL_STORYTELLING]: 'Storytelling Type',
   [POPUP_TYPE_IDS.SIMPLE_ICON_MODAL]: 'Simple Icon Modal',
-  [POPUP_TYPE_IDS.BOTTOM_SLIDE_UP]: 'Bottom Slide Up',
+  [POPUP_TYPE_IDS.BOTTOM_SLIDE_UP]: 'Character Type',
+  [POPUP_TYPE_IDS.BOTTOM_SLIDE_UP_ICON]: 'Icon Type',
 }
 
 export function getPopupTypeDisplayName(id) {
@@ -149,15 +158,20 @@ export const POPUP_GROUP_DEFAULT_POPUP_TYPE = {
   bottom_slide: POPUP_TYPE_IDS.BOTTOM_SLIDE_UP,
 }
 
-export function getPopupUiGroupId(popupType) {
-  if (
+/** Choice Button Modal — 1:1 · 3:4 · 3:5 */
+export function isChoiceButtonModalType(popupType) {
+  return (
     popupType === POPUP_TYPE_IDS.SQUARE ||
     popupType === POPUP_TYPE_IDS.VERTICAL_3_4 ||
     popupType === POPUP_TYPE_IDS.VERTICAL
-  ) {
+  )
+}
+
+export function getPopupUiGroupId(popupType) {
+  if (isChoiceButtonModalType(popupType)) {
     return 'choice'
   }
-  if (popupType === POPUP_TYPE_IDS.SLIDE_MODAL_1_1) return 'auto_square'
+  if (isSlideModalAutoSquareType(popupType)) return 'auto_square'
   if (
     popupType === POPUP_TYPE_IDS.SLIDE_MODAL_VERTICAL ||
     popupType === POPUP_TYPE_IDS.CAROUSEL_THUMB_HORIZONTAL ||
@@ -167,8 +181,29 @@ export function getPopupUiGroupId(popupType) {
     return 'carousel'
   }
   if (popupType === POPUP_TYPE_IDS.SIMPLE_ICON_MODAL) return 'simple_icon'
-  if (popupType === POPUP_TYPE_IDS.BOTTOM_SLIDE_UP) return 'bottom_slide'
+  if (
+    popupType === POPUP_TYPE_IDS.BOTTOM_SLIDE_UP ||
+    popupType === POPUP_TYPE_IDS.BOTTOM_SLIDE_UP_ICON
+  ) {
+    return 'bottom_slide'
+  }
   return 'choice'
+}
+
+/** Bottom Slide Up — Character / Icon 공통 분기 */
+export function isBottomSlideUpType(popupType) {
+  return (
+    popupType === POPUP_TYPE_IDS.BOTTOM_SLIDE_UP ||
+    popupType === POPUP_TYPE_IDS.BOTTOM_SLIDE_UP_ICON
+  )
+}
+
+/** Bottom Slide 바 좌측 미디어 URL — Character=업로드, Icon=프리셋 */
+export function getBottomSlideUpThumbSrc(state) {
+  if (state.popupType === POPUP_TYPE_IDS.BOTTOM_SLIDE_UP_ICON) {
+    return getSimpleIconPresetSrc(state.bottomSlideUpIconPresetId)
+  }
+  return state.imageSource ?? null
 }
 
 export function isCarouselThumbPopupType(popupType) {
@@ -184,6 +219,14 @@ export function isSimpleIconModalPopupType(popupType) {
   return popupType === POPUP_TYPE_IDS.SIMPLE_ICON_MODAL
 }
 
+/** Auto Square Slide 그룹 — 1:1 · 4:5 공통 슬롯 슬라이드 */
+export function isSlideModalAutoSquareType(popupType) {
+  return (
+    popupType === POPUP_TYPE_IDS.SLIDE_MODAL_1_1 ||
+    popupType === POPUP_TYPE_IDS.SLIDE_MODAL_4_5
+  )
+}
+
 /** Bottom Slide Up — 390 스크린 기준 플로팅 바 */
 export const BOTTOM_SLIDE_UP_SCREEN_W = 390
 export const BOTTOM_SLIDE_UP_MARGIN_H = 16
@@ -192,17 +235,29 @@ export const BOTTOM_SLIDE_UP_BAR_HEIGHT = 82
 export const BOTTOM_SLIDE_UP_RADIUS = 6
 export const BOTTOM_SLIDE_UP_THUMB_PX = 50
 export const BOTTOM_SLIDE_UP_THUMB_RADIUS = 4
+/** Bottom Slide Up — Icon Type 좌측 미디어 (contain · 원형) */
+export const BOTTOM_SLIDE_UP_ICON_THUMB_PX = 40
 export const BOTTOM_SLIDE_UP_CLOSE_PX = 22
 export const BOTTOM_SLIDE_UP_PAD_X = 15
 export const BOTTOM_SLIDE_UP_GAP = 10
-/** 이미지·텍스트·닫기 제외 후 텍스트 영역 최대 폭 (390 − 좌우마진 − 내부패딩 − 썸네일 − 갭×2 − 닫기) */
-export const BOTTOM_SLIDE_UP_TEXT_CLAMP_W =
-  BOTTOM_SLIDE_UP_SCREEN_W -
-  BOTTOM_SLIDE_UP_MARGIN_H * 2 -
-  BOTTOM_SLIDE_UP_PAD_X * 2 -
-  BOTTOM_SLIDE_UP_THUMB_PX -
-  BOTTOM_SLIDE_UP_GAP * 2 -
-  BOTTOM_SLIDE_UP_CLOSE_PX
+/** 이미지·텍스트·닫기 제외 후 텍스트 영역 최대 폭 (타입별 썸네일 폭 반영) */
+export function getBottomSlideUpThumbPx(popupType) {
+  return popupType === POPUP_TYPE_IDS.BOTTOM_SLIDE_UP_ICON
+    ? BOTTOM_SLIDE_UP_ICON_THUMB_PX
+    : BOTTOM_SLIDE_UP_THUMB_PX
+}
+
+export function getBottomSlideUpTextClampWidth(popupType) {
+  const thumbPx = getBottomSlideUpThumbPx(popupType)
+  return (
+    BOTTOM_SLIDE_UP_SCREEN_W -
+    BOTTOM_SLIDE_UP_MARGIN_H * 2 -
+    BOTTOM_SLIDE_UP_PAD_X * 2 -
+    thumbPx -
+    BOTTOM_SLIDE_UP_GAP * 2 -
+    BOTTOM_SLIDE_UP_CLOSE_PX
+  )
+}
 
 /**
  * @param {string} id
@@ -246,6 +301,15 @@ export function getPopupTypeConfig(id) {
         noButtons: true,
       }
     }
+    case POPUP_TYPE_IDS.SLIDE_MODAL_4_5: {
+      return {
+        id: POPUP_TYPE_IDS.SLIDE_MODAL_4_5,
+        width: w,
+        height: (w * 5) / 4,
+        aspectRatio: '4/5',
+        noButtons: true,
+      }
+    }
     case POPUP_TYPE_IDS.SLIDE_MODAL_VERTICAL:
     case POPUP_TYPE_IDS.CAROUSEL_THUMB_HORIZONTAL:
     case POPUP_TYPE_IDS.CAROUSEL_SNS:
@@ -258,9 +322,10 @@ export function getPopupTypeConfig(id) {
         noButtons: true,
       }
     }
-    case POPUP_TYPE_IDS.BOTTOM_SLIDE_UP: {
+    case POPUP_TYPE_IDS.BOTTOM_SLIDE_UP:
+    case POPUP_TYPE_IDS.BOTTOM_SLIDE_UP_ICON: {
       return {
-        id: POPUP_TYPE_IDS.BOTTOM_SLIDE_UP,
+        id,
         width: BOTTOM_SLIDE_UP_SCREEN_W,
         height: 844,
         aspectRatio: 'custom',
@@ -293,5 +358,6 @@ export const POPUP_TYPE_OPTIONS = [
   { id: POPUP_TYPE_IDS.VERTICAL, labelKey: 'popupTypeVertical' },
   { id: POPUP_TYPE_IDS.VERTICAL_3_4, labelKey: 'popupTypeVertical34' },
   { id: POPUP_TYPE_IDS.SLIDE_MODAL_1_1, labelKey: 'popupTypeSlideModal11' },
+  { id: POPUP_TYPE_IDS.SLIDE_MODAL_4_5, labelKey: 'popupTypeSlideModal45' },
   { id: POPUP_TYPE_IDS.SLIDE_MODAL_VERTICAL, labelKey: 'popupTypeSlideModalVertical' },
 ]

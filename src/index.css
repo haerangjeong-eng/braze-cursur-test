@@ -43,6 +43,42 @@ body {
   background: transparent;
 }
 
+/**
+ * 팝업 템플릿 설정창 세로 스크롤 — **콘텐츠 폭은 스크롤 없을 때와 동일**(전폭 사용).
+ * - Chromium/WebKit: `overflow` 세로값 `overlay` → 얇은 스크롤바만 위에 겹침(폭 침범 없음).
+ * - Firefox: overlay 미지원 → `scrollbar-width: none` 으로 폭은 침범하지 않음(막대는 안 보임, 휠·트랙패드 스크롤만).
+ */
+.settings-panel-scroll {
+  overscroll-behavior: contain;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.settings-panel-scroll {
+  overflow: hidden overlay;
+}
+
+.settings-panel-scroll::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.settings-panel-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.settings-panel-scroll::-webkit-scrollbar-thumb {
+  background-color: rgb(113 113 122 / 0.35);
+  border-radius: 9999px;
+  border: 1px solid transparent;
+  background-clip: content-box;
+}
+
+.settings-panel-scroll::-webkit-scrollbar-thumb:hover {
+  background-color: rgb(161 161 170 / 0.45);
+}
+
 /* Custom range slider */
 input[type="range"] {
   @apply appearance-none bg-surface-600 rounded-full h-2;
@@ -56,12 +92,53 @@ input[type="range"]::-moz-range-thumb {
   background-color: #00b854;
 }
 
-/* Color picker styling */
+/* Color picker — 패널 Hex 필드와 동일 높이(h-9)·테두리(zinc-700) 스트로크 */
 input[type="color"] {
-  @apply w-10 h-10 rounded-lg cursor-pointer border border-surface-500 p-0 overflow-hidden;
+  @apply box-border h-9 w-9 shrink-0 cursor-pointer overflow-hidden rounded-lg border border-zinc-700 bg-surface-800 p-0;
 }
-input[type="color"]::-webkit-color-swatch-wrapper { padding: 2px; }
-input[type="color"]::-webkit-color-swatch { border: none; border-radius: 6px; }
+input[type="color"]::-webkit-color-swatch-wrapper {
+  padding: 1px;
+}
+input[type="color"]::-webkit-color-swatch {
+  border: none;
+  border-radius: 6px;
+}
+input[type="color"]::-moz-color-swatch {
+  border: none;
+  border-radius: 6px;
+}
+
+/* react-colorful — 설정 패널 zinc · 브랜드 포인터 */
+.panel-color-picker-popover .react-colorful {
+  width: 100%;
+  height: 148px;
+}
+.panel-color-picker-popover .react-colorful__saturation {
+  border-radius: 10px;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.07),
+    inset 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+.panel-color-picker-popover .react-colorful__hue {
+  height: 14px;
+  border-radius: 7px;
+  margin-top: 12px;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+.panel-color-picker-popover .react-colorful__hue-pointer {
+  width: 18px;
+  height: 18px;
+  border: 2px solid #fafafa;
+  border-radius: 9999px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
+}
+.panel-color-picker-popover .react-colorful__saturation-pointer {
+  width: 18px;
+  height: 18px;
+  border: 2px solid #fafafa;
+  border-radius: 9999px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
+}
 
 @keyframes fadeIn {
   from {
@@ -72,4 +149,12 @@ input[type="color"]::-webkit-color-swatch { border: none; border-radius: 6px; }
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+/* Carousel Slide Modal 미리보기 — 무한 루프 순간 점프 시에만 scroll-behavior 끔 */
+.preview-smv-carousel-view {
+  scroll-behavior: smooth;
+}
+.preview-smv-carousel-view.preview-smv-carousel-view--instant {
+  scroll-behavior: auto !important;
 }

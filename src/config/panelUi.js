@@ -23,7 +23,7 @@ export const PANEL_SLIDE_CARD_BORDER_IDLE = 'border-zinc-700'
 
 export const PANEL_SLIDE_CARD_BORDER_DROP = 'border-brand/60 ring-2 ring-brand/25'
 
-/** 배경 이미지 없음 플레이스홀더 */
+/** 이미지 없음 플레이스홀더 */
 export const PANEL_IMAGE_EMPTY_PLACEHOLDER_CLASS =
   `${PANEL_R} border border-zinc-600/60 bg-zinc-950/25 py-2 text-center text-xs text-zinc-500`
 
@@ -43,6 +43,12 @@ export const PANEL_INSET_TOGGLE_BUTTON_ACTIVE_CLASS =
   'bg-brand/25 text-white ring-1 ring-brand/35'
 export const PANEL_INSET_TOGGLE_BUTTON_IDLE_CLASS =
   'text-zinc-400 hover:text-zinc-200'
+
+/**
+ * 팝업 템플릿 설정 UI — 세로 스크롤(WebKit overlay 썸 / FF 폭 무시)
+ * @see `index.css` `.settings-panel-scroll`
+ */
+export const PANEL_SETTINGS_SCROLL_CLASS = 'settings-panel-scroll'
 
 /** 드래그 프리뷰(포털) 카드 — 일반 카드와 동일 보더, 살짝 브랜드 링만 */
 export const PANEL_DRAG_PORTAL_CARD_CLASS = `${PANEL_R} fixed z-[200] border border-zinc-700 bg-surface-800 p-3 shadow-2xl ring-1 ring-brand/25 pointer-events-none select-none overflow-hidden`

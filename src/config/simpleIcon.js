@@ -17,7 +17,9 @@ export const SIMPLE_ICON_ICON_DEFAULT_DESCRIPTION =
 
 const BASE = '/simple-icon'
 
-/** 순서: 선물 → 그래프 → 우상향 → 타임딜 A → 축하 → 타임딜 B */
+/**
+ * 순서: 선물 → … → 타임딜 B → (Bottom Slide / Simple Icon 공용 추가) 기프트&쿠키 … 기프트카드
+ */
 export const SIMPLE_ICON_PRESETS = [
   { id: 'gift', src: `${BASE}/gift.png`, labelKey: 'simpleIconPresetGift' },
   { id: 'chart', src: `${BASE}/chart.png`, labelKey: 'simpleIconPresetChart' },
@@ -25,6 +27,12 @@ export const SIMPLE_ICON_PRESETS = [
   { id: 'hourglass', src: `${BASE}/hourglass.png`, labelKey: 'simpleIconPresetHourglass' },
   { id: 'hands', src: `${BASE}/hands.png`, labelKey: 'simpleIconPresetHands' },
   { id: 'coins', src: `${BASE}/coins.png`, labelKey: 'simpleIconPresetCoins' },
+  { id: 'gift_cookie', src: `${BASE}/gift_cookie.png`, labelKey: 'simpleIconPresetGiftCookie' },
+  { id: 'stopwatch_deal', src: `${BASE}/stopwatch_deal.png`, labelKey: 'simpleIconPresetStopwatchDeal' },
+  { id: 'oven_cookie', src: `${BASE}/oven_cookie.png`, labelKey: 'simpleIconPresetOvenCookie' },
+  { id: 'tv_play', src: `${BASE}/tv_play.png`, labelKey: 'simpleIconPresetTvPlay' },
+  { id: 'book_arrow', src: `${BASE}/book_arrow.png`, labelKey: 'simpleIconPresetBookArrow' },
+  { id: 'gift_card', src: `${BASE}/gift_card.png`, labelKey: 'simpleIconPresetGiftCard' },
 ]
 
 export function getSimpleIconPresetSrc(presetId) {

@@ -1,88 +1,202 @@
-import { isCarouselThumbPopupType, POPUP_TYPE_IDS } from '../config/popupTypes'
+import {
+  isBottomSlideUpType,
+  isCarouselThumbPopupType,
+  isChoiceButtonModalType,
+  isSlideModalAutoSquareType,
+  POPUP_TYPE_IDS,
+  SLIDE_MODAL_11_MIN_IMAGES,
+  SLIDE_MODAL_VERTICAL_MIN_IMAGES,
+} from '../config/popupTypes'
 import { SIMPLE_ICON_VARIANT_ICON } from '../config/simpleIcon'
 import { slideModal11HasAllImages } from './slideModal11'
-import {
-  slideVerticalHasAllImages,
-  slideVerticalHasRequiredText,
-} from './slideVertical'
+import { slideVerticalHasAllImages } from './slideVertical'
+
+function hasTrim(str) {
+  return String(str ?? '').trim().length > 0
+}
+
+function choiceModalHasAllButtonLabels(state) {
+  const n = state.buttonCount ?? 1
+  if (!String(state.button1?.label ?? '').trim()) return false
+  if (n >= 2 && !String(state.button2?.label ?? '').trim()) return false
+  return true
+}
+
+/** `{n}` 등 플레이스홀더 치환 */
+export function formatCopyHtmlToastMessage(template, vars = {}) {
+  let s = String(template ?? '')
+  for (const [k, v] of Object.entries(vars)) {
+    s = s.split(`{${k}}`).join(String(v))
+  }
+  return s
+}
 
 /**
- * HTML 복사 허용 여부 (패널·헤더 경고와 동일 규칙).
+ * @typedef {'min_images'|'upload_image'|'bottom_slide_text'|'title'|'button'|'title_and_button'} CopyHtmlFailReason
  */
-export function getCopyHtmlValidationFlags(state) {
-  const carousel = isCarouselThumbPopupType(state.popupType)
 
-  const carouselMissingImages =
-    carousel && !slideVerticalHasAllImages(state.slideVerticalImages)
+/**
+ * 첫 번째 검증 실패만 반환 (토스트 1개와 동일).
+ * @returns {{ reason: CopyHtmlFailReason, minImages?: number } | null}
+ */
+function getFirstCopyHtmlFailure(state) {
+  const pt = state.popupType
 
-  const carouselMissingTitle =
-    carousel &&
-    !slideVerticalHasRequiredText(
-      state.slideVerticalTitle,
-      state.slideVerticalDescription,
-      state.popupType
-    )
+  if (isCarouselThumbPopupType(pt) && !slideVerticalHasAllImages(state.slideVerticalImages)) {
+    return { reason: 'min_images', minImages: SLIDE_MODAL_VERTICAL_MIN_IMAGES }
+  }
 
-  const slideModal11MissingImages =
-    state.popupType === POPUP_TYPE_IDS.SLIDE_MODAL_1_1 &&
-    !slideModal11HasAllImages(state.slideImages)
+  if (isSlideModalAutoSquareType(pt) && !slideModal11HasAllImages(state.slideImages)) {
+    return { reason: 'min_images', minImages: SLIDE_MODAL_11_MIN_IMAGES }
+  }
 
-  const simpleIconMissingThumbImage =
-    state.popupType === POPUP_TYPE_IDS.SIMPLE_ICON_MODAL &&
+  if (isChoiceButtonModalType(pt) && !state.imageSource) {
+    return { reason: 'upload_image' }
+  }
+
+  if (
+    pt === POPUP_TYPE_IDS.SIMPLE_ICON_MODAL &&
     state.simpleIconVariant !== SIMPLE_ICON_VARIANT_ICON &&
     !state.imageSource
-
-  const simpleIconMissingTitle =
-    state.popupType === POPUP_TYPE_IDS.SIMPLE_ICON_MODAL &&
-    !slideVerticalHasRequiredText(
-      state.slideVerticalTitle,
-      state.slideVerticalDescription,
-      POPUP_TYPE_IDS.SLIDE_MODAL_VERTICAL
-    )
-
-  const bottomSlideMissingImage =
-    state.popupType === POPUP_TYPE_IDS.BOTTOM_SLIDE_UP && !state.imageSource
-
-  const bottomSlideMissingText =
-    state.popupType === POPUP_TYPE_IDS.BOTTOM_SLIDE_UP &&
-    String(state.bottomSlideUpText ?? '').trim().length === 0
-
-  return {
-    carouselMissingImages,
-    carouselMissingTitle,
-    slideModal11MissingImages,
-    simpleIconMissingThumbImage,
-    simpleIconMissingTitle,
-    bottomSlideMissingImage,
-    bottomSlideMissingText,
+  ) {
+    return { reason: 'upload_image' }
   }
-}
 
-export function isCopyHtmlValid(state) {
-  const f = getCopyHtmlValidationFlags(state)
-  return !(
-    f.carouselMissingImages ||
-    f.carouselMissingTitle ||
-    f.slideModal11MissingImages ||
-    f.simpleIconMissingThumbImage ||
-    f.simpleIconMissingTitle ||
-    f.bottomSlideMissingImage ||
-    f.bottomSlideMissingText
-  )
+  if (pt === POPUP_TYPE_IDS.BOTTOM_SLIDE_UP && !state.imageSource) {
+    return { reason: 'upload_image' }
+  }
+
+  if (isBottomSlideUpType(pt) && !hasTrim(state.bottomSlideUpText)) {
+    return { reason: 'bottom_slide_text' }
+  }
+
+  const carouselOrSimpleIcon =
+    isCarouselThumbPopupType(pt) || pt === POPUP_TYPE_IDS.SIMPLE_ICON_MODAL
+
+  if (carouselOrSimpleIcon) {
+    const titleOk = hasTrim(state.slideVerticalTitle)
+    const btnOk = hasTrim(state.button1?.label)
+    if (!titleOk && !btnOk) return { reason: 'title_and_button' }
+    if (!titleOk) return { reason: 'title' }
+    if (!btnOk) return { reason: 'button' }
+  }
+
+  if (isChoiceButtonModalType(pt) && !choiceModalHasAllButtonLabels(state)) {
+    return { reason: 'button' }
+  }
+
+  return null
 }
 
 /**
- * HTML 복사 불가 시 토스트에 띄울 문구 (우선순위는 패널 기존 안내와 동일).
+ * HTML 복사 허용 여부 (패널·토스트와 동일 규칙).
  */
+export function isCopyHtmlValid(state) {
+  return getFirstCopyHtmlFailure(state) === null
+}
+
+/**
+ * HTML 복사 불가 시 토스트에 띄울 문구.
+ */
+/**
+ * 패널에서 코드 복사 조건 미충족 시 강조할 영역 플래그 (토스트와 독립적으로 모든 미충족 항목).
+ */
+export function getCopyHtmlPanelIssues(state) {
+  const pt = state.popupType
+  /** @type {Record<string, boolean>} */
+  const issues = {
+    carouselMinImages: false,
+    slide11MinImages: false,
+    uploadImage: false,
+    bottomSlideText: false,
+    title: false,
+    smvButton: false,
+    choiceButton1: false,
+    choiceButton2: false,
+  }
+
+  if (isCarouselThumbPopupType(pt) && !slideVerticalHasAllImages(state.slideVerticalImages)) {
+    issues.carouselMinImages = true
+  }
+
+  if (isSlideModalAutoSquareType(pt) && !slideModal11HasAllImages(state.slideImages)) {
+    issues.slide11MinImages = true
+  }
+
+  if (isChoiceButtonModalType(pt) && !state.imageSource) {
+    issues.uploadImage = true
+  }
+
+  if (
+    pt === POPUP_TYPE_IDS.SIMPLE_ICON_MODAL &&
+    state.simpleIconVariant !== SIMPLE_ICON_VARIANT_ICON &&
+    !state.imageSource
+  ) {
+    issues.uploadImage = true
+  }
+
+  if (pt === POPUP_TYPE_IDS.BOTTOM_SLIDE_UP && !state.imageSource) {
+    issues.uploadImage = true
+  }
+
+  if (isBottomSlideUpType(pt) && !hasTrim(state.bottomSlideUpText)) {
+    issues.bottomSlideText = true
+  }
+
+  const carouselOrSimpleIcon =
+    isCarouselThumbPopupType(pt) || pt === POPUP_TYPE_IDS.SIMPLE_ICON_MODAL
+
+  if (carouselOrSimpleIcon) {
+    if (!hasTrim(state.slideVerticalTitle)) issues.title = true
+    if (!hasTrim(state.button1?.label)) issues.smvButton = true
+  }
+
+  if (isChoiceButtonModalType(pt)) {
+    if (!String(state.button1?.label ?? '').trim()) issues.choiceButton1 = true
+    if (
+      (state.buttonCount ?? 1) >= 2 &&
+      !String(state.button2?.label ?? '').trim()
+    ) {
+      issues.choiceButton2 = true
+    }
+  }
+
+  return issues
+}
+
+/** 복사 시도 전에는 패널 경고 링·문구를 숨길 때 사용 */
+export const EMPTY_COPY_HTML_PANEL_ISSUES = {
+  carouselMinImages: false,
+  slide11MinImages: false,
+  uploadImage: false,
+  bottomSlideText: false,
+  title: false,
+  smvButton: false,
+  choiceButton1: false,
+  choiceButton2: false,
+}
+
 export function getCopyHtmlInvalidMessage(state, tr) {
   const t = tr || {}
-  const f = getCopyHtmlValidationFlags(state)
-  if (f.carouselMissingImages) return t.smvCopyRequiresAllImages ?? ''
-  if (f.carouselMissingTitle) return t.smvCopyRequiresTitle ?? ''
-  if (f.slideModal11MissingImages) return t.slideModal11CopyRequiresAllImages ?? ''
-  if (f.simpleIconMissingThumbImage) return t.simpleIconCopyRequiresThumbImage ?? ''
-  if (f.simpleIconMissingTitle) return t.smvCopyRequiresTitle ?? ''
-  if (f.bottomSlideMissingImage) return t.copyHtmlBottomSlideNeedsImage ?? ''
-  if (f.bottomSlideMissingText) return t.copyHtmlBottomSlideNeedsText ?? ''
-  return ''
+  const fail = getFirstCopyHtmlFailure(state)
+  if (!fail) return ''
+
+  switch (fail.reason) {
+    case 'min_images':
+      return formatCopyHtmlToastMessage(t.copyHtmlToastMinImages, {
+        n: fail.minImages ?? 0,
+      })
+    case 'upload_image':
+      return t.copyHtmlToastUploadImage ?? ''
+    case 'bottom_slide_text':
+      return t.copyHtmlToastBottomSlideTextRequired ?? ''
+    case 'title':
+      return t.copyHtmlToastTitleRequired ?? ''
+    case 'button':
+      return t.copyHtmlToastButtonRequired ?? ''
+    case 'title_and_button':
+      return t.copyHtmlToastTitleAndButtonRequired ?? ''
+    default:
+      return ''
+  }
 }

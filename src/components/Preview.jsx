@@ -8,19 +8,20 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
   getPopupTypeConfig,
+  isBottomSlideUpType,
   isCarouselThumbPopupType,
+  isChoiceButtonModalType,
   isSimpleIconModalPopupType,
   POPUP_CONTAINER_BORDER_RADIUS,
   POPUP_EMPTY_BACKGROUND,
   POPUP_TYPE_IDS,
+  isSlideModalAutoSquareType,
   SMV_BTN_BG,
   SMV_BTN_H,
   SMV_BTN_RADIUS,
   SMV_BTN_W,
   SMV_COLUMN_W,
   SMV_CAROUSEL_GAP,
-  SMV_CAROUSEL_CENTER_SLOT_LEFT,
-  SMV_CAROUSEL_PAGINATION_INSET,
   SMV_CAROUSEL_SLIDE_W,
   SMV_CONTENT_PAD_X,
   SMV_GAP_SLIDE_TEXT,
@@ -44,12 +45,78 @@ import BottomSlideUpPreview from './BottomSlideUpPreview'
 import { resolvePopupPreviewDimensions } from '../utils/popupLayout'
 import { normalizeSlideModal11Images } from '../utils/slideModal11'
 import { measureSmvVisualLineCount } from '../utils/smvTextMeasure'
-import { getSmvCarouselTrack, normalizeSlideVerticalImages } from '../utils/slideVertical'
+import {
+  getSmvCarouselTrack,
+  getSmvLogicalIndexFromTrackIndex,
+  normalizeSlideVerticalImages,
+} from '../utils/slideVertical'
+
+const PREVIEW_SMV_CAROUSEL_VIEW_CLASS = 'preview-smv-carousel-view'
+const PREVIEW_SMV_CAROUSEL_INSTANT_CLASS = 'preview-smv-carousel-view--instant'
+
+/** 무한 루프 복제 구간으로 점프할 때만 컨테이너 scroll-behavior를 끈다(CSS smooth가 scrollIntoView를 덮어쓰는 경우 방지) */
+function withInstantSmvScroll(carouselEl, run) {
+  if (!carouselEl) return
+  carouselEl.classList.add(PREVIEW_SMV_CAROUSEL_INSTANT_CLASS)
+  try {
+    run()
+  } finally {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        carouselEl.classList.remove(PREVIEW_SMV_CAROUSEL_INSTANT_CLASS)
+      })
+    })
+  }
+}
+
+/** Auto Square 캐러셀 순간 점프용(transition 없이 즉시 좌표 이동) */
+function withInstantSlideModalScroll(carouselEl, run) {
+  if (!carouselEl) return
+  const prev = carouselEl.style.scrollBehavior
+  carouselEl.style.scrollBehavior = 'auto'
+  try {
+    run()
+  } finally {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        carouselEl.style.scrollBehavior = prev || ''
+      })
+    })
+  }
+}
+
+function getLoopLogicalIndexFromTrackIndex(trackIndex, slotCount) {
+  const n = Math.max(0, Number(slotCount) || 0)
+  if (n <= 0) return 0
+  if (trackIndex === 0) return n - 1
+  if (trackIndex === n + 1) return 0
+  return Math.min(Math.max(0, trackIndex - 1), n - 1)
+}
 
 /** 뷰포트 중앙과 가장 가까운 슬라이드 트랙 인덱스 (dup + n장 + dup) */
 function getSmvTrackIndexCentered(viewportEl) {
   const slides = viewportEl.firstElementChild?.children
   if (!slides?.length) return 1
+  const vr = viewportEl.getBoundingClientRect()
+  const mid = vr.left + vr.width / 2
+  let best = 0
+  let bestD = Infinity
+  for (let i = 0; i < slides.length; i++) {
+    const r = slides[i].getBoundingClientRect()
+    const c = r.left + r.width / 2
+    const d = Math.abs(c - mid)
+    if (d < bestD) {
+      bestD = d
+      best = i
+    }
+  }
+  return best
+}
+
+/** 가로 트랙(중복 없음): 중앙에 가장 가까운 슬라이드 인덱스 0..n-1 */
+function getLinearTrackIndexCentered(viewportEl) {
+  const slides = viewportEl.firstElementChild?.children
+  if (!slides?.length) return 0
   const vr = viewportEl.getBoundingClientRect()
   const mid = vr.left + vr.width / 2
   let best = 0
@@ -88,12 +155,12 @@ const BUTTON_LINE_CLAMP_STYLE = {
   maxWidth: '100%',
   minWidth: 0,
 }
-const SLIDE_PAGINATION_W = 38
-const SLIDE_PAGINATION_H = 20
-const SLIDE_PAGINATION_GAP = 2
-const SLIDE_PAGINATION_INSET = 6
-const SLIDE_PAGINATION_BG = 'rgba(0, 0, 0, 0.8)'
-const SLIDE_PAGINATION_TOTAL_COLOR = '#828282'
+const SLIDE_DOT_SIZE = 6
+const SLIDE_DOT_GAP = 4
+const SLIDE_DOT_BOTTOM_OFFSET = 8
+const SLIDE_DOT_INACTIVE = '#ffffff'
+const SLIDE_DOT_ACTIVE = '#00DC64'
+const SLIDE_DOT_COLOR_TRANSITION = 'background-color 0.35s ease'
 const FOOTER_TEXT_COLOR = '#FFFFFF'
 const FOOTER_FONT_SIZE = 15
 
@@ -141,6 +208,32 @@ const SMV_DESC_TEXT_STYLE = {
   textOverflow: 'ellipsis',
 }
 
+function SlideDotIndicators({ count, activeIndex }) {
+  if (count <= 0) return null
+  const safeIdx = Math.min(Math.max(0, activeIndex), Math.max(0, count - 1))
+  return (
+    <div
+      className="pointer-events-none absolute left-0 right-0 z-10 flex justify-center items-center"
+      style={{ bottom: SLIDE_DOT_BOTTOM_OFFSET, gap: SLIDE_DOT_GAP }}
+      aria-hidden
+    >
+      {Array.from({ length: count }, (_, i) => (
+        <span
+          key={i}
+          style={{
+            width: SLIDE_DOT_SIZE,
+            height: SLIDE_DOT_SIZE,
+            borderRadius: '50%',
+            backgroundColor: i === safeIdx ? SLIDE_DOT_ACTIVE : SLIDE_DOT_INACTIVE,
+            transition: SLIDE_DOT_COLOR_TRANSITION,
+            flexShrink: 0,
+          }}
+        />
+      ))}
+    </div>
+  )
+}
+
 function CloseXIcon({ className = 'flex-shrink-0' }) {
   return (
     <svg
@@ -159,29 +252,65 @@ function CloseXIcon({ className = 'flex-shrink-0' }) {
   )
 }
 
-export default function Preview({ state, t, onSlideVerticalPreviewIndexChange }) {
+export default function Preview({
+  state,
+  t,
+  onSlideVerticalPreviewIndexChange,
+  onSlidePreviewIndexChange,
+}) {
   const tr = t || {}
   const cfg = getPopupTypeConfig(state.popupType)
   const frameDims = resolvePopupPreviewDimensions(state)
-  const isSlideModal11 = cfg.id === POPUP_TYPE_IDS.SLIDE_MODAL_1_1
+  const isSlideModalAutoSquare = isSlideModalAutoSquareType(state.popupType)
   const isSmvCarousel = isCarouselThumbPopupType(state.popupType)
   const isSimpleIconModal = isSimpleIconModalPopupType(state.popupType)
-  const isBottomSlideUp = state.popupType === POPUP_TYPE_IDS.BOTTOM_SLIDE_UP
+  const isBottomSlideUp = isBottomSlideUpType(state.popupType)
   const smvSlideH = getSmvCarouselSlideHeight(state.popupType)
   const smvScrollRef = useRef(null)
   const suppressSmvScrollSyncRef = useRef(false)
   const smvDragRef = useRef(null)
   const smvFirstLayoutRef = useRef(true)
+  /** 패널 prev/next 순환 시 스크롤 방향(복제 슬라이드 경유) */
+  const smvPrevLogicalIdxRef = useRef(state.slideVerticalPreviewIndex ?? 0)
   const smvScrollSettleTimer = useRef(null)
+  const smvDotRafRef = useRef(null)
   const [smvCarouselDragging, setSmvCarouselDragging] = useState(false)
-  const slideImages = isSlideModal11
-    ? normalizeSlideModal11Images(state.slideImages)
-    : state.slideImages || []
+  /** 스크롤 중 인디케이터: 복제 슬라이드 위에서도 실제 논리 인덱스 표시(null이면 smvIdx 사용) */
+  const [smvScrollDotLogical, setSmvScrollDotLogical] = useState(null)
+  const slideModalScrollRef = useRef(null)
+  const suppressSlideModalScrollSyncRef = useRef(false)
+  const slideModalDragRef = useRef(null)
+  const slideModalFirstLayoutRef = useRef(true)
+  const slideModalPrevLogicalIdxRef = useRef(state.slidePreviewIndex ?? 0)
+  const slideModalScrollSettleTimer = useRef(null)
+  const slideModalDotRafRef = useRef(null)
+  const [slideModalDragging, setSlideModalDragging] = useState(false)
+  const [slideModalScrollDotLogical, setSlideModalScrollDotLogical] = useState(null)
+  const slideImages = useMemo(
+    () =>
+      isSlideModalAutoSquare
+        ? normalizeSlideModal11Images(state.slideImages)
+        : state.slideImages || [],
+    [isSlideModalAutoSquare, state.slideImages]
+  )
   const slideIdx = Math.min(
     Math.max(0, state.slidePreviewIndex ?? 0),
     Math.max(0, slideImages.length - 1)
   )
   const slideSrc = slideImages.length ? slideImages[slideIdx] : null
+  const slideModalTrackSlides = useMemo(() => {
+    if (!isSlideModalAutoSquare || slideImages.length === 0) return []
+    const keys = slideImages.map((_, i) => state.slideImagesSlotKeys?.[i] ?? `slide-preview-${i}`)
+    if (slideImages.length === 1) {
+      return [{ key: keys[0], src: slideImages[0], logicalIndex: 0 }]
+    }
+    const lastIdx = slideImages.length - 1
+    return [
+      { key: `dup-last-${keys[lastIdx]}`, src: slideImages[lastIdx], logicalIndex: lastIdx },
+      ...slideImages.map((src, i) => ({ key: keys[i], src, logicalIndex: i })),
+      { key: `dup-first-${keys[0]}`, src: slideImages[0], logicalIndex: 0 },
+    ]
+  }, [isSlideModalAutoSquare, slideImages, state.slideImagesSlotKeys])
   const smvImages = useMemo(
     () => normalizeSlideVerticalImages(state.slideVerticalImages),
     [state.slideVerticalImages]
@@ -195,12 +324,9 @@ export default function Preview({ state, t, onSlideVerticalPreviewIndexChange })
     !isSmvCarousel &&
     !isSimpleIconModal &&
     !isBottomSlideUp &&
-    (isSlideModal11 ? Boolean(slideSrc) : Boolean(state.imageSource))
-  const displayImageSrc = isSlideModal11 ? slideSrc : state.imageSource
-  const slideTotal = slideImages.length > 0 ? slideImages.length : 1
-  const slideCurrent = slideImages.length > 0 ? slideIdx + 1 : 1
+    (isSlideModalAutoSquare ? Boolean(slideSrc) : Boolean(state.imageSource))
+  const displayImageSrc = isSlideModalAutoSquare ? slideSrc : state.imageSource
   const smvTotal = smvImages.length
-  const smvCurrent = smvIdx + 1
   const showButtons =
     (state.buttonCount ?? 1) >= 1 && !cfg.noButtons
 
@@ -238,65 +364,284 @@ export default function Preview({ state, t, onSlideVerticalPreviewIndexChange })
     const el = smvScrollRef.current
     if (!el || suppressSmvScrollSyncRef.current) return
     const slides = el.firstElementChild?.children
+    const maxIdx = Math.max(0, smvSlotCount - 1)
+    const prevLogical = smvPrevLogicalIdxRef.current
+    const curTrack = getSmvTrackIndexCentered(el)
+
+    /**
+     * 마지막 → 첫(패널/순환): dup-first로만 스크롤해야 함.
+     * 방금 루프 점프로 이미 실제 1번(트랙 1)에 있으면 ref만 맞추고 — 여기서 dup으로 다시 밀면 한 번 더 ‘덜컥’ 함.
+     */
+    if (maxIdx > 0 && prevLogical === maxIdx && smvIdx === 0) {
+      if (curTrack === 1) {
+        smvPrevLogicalIdxRef.current = smvIdx
+        return
+      }
+      smvFirstLayoutRef.current = false
+      slides?.[smvSlotCount + 1]?.scrollIntoView({
+        inline: 'center',
+        block: 'nearest',
+        behavior: 'smooth',
+      })
+      smvPrevLogicalIdxRef.current = smvIdx
+      return
+    }
+    /**
+     * 첫 → 마지막(패널/순환): dup-last로만 스크롤.
+     * 루프 점프 직후 이미 실제 마지막(트랙 smvSlotCount)이면 dup으로 밀지 않음.
+     */
+    if (maxIdx > 0 && prevLogical === 0 && smvIdx === maxIdx) {
+      if (curTrack === smvSlotCount) {
+        smvPrevLogicalIdxRef.current = smvIdx
+        return
+      }
+      smvFirstLayoutRef.current = false
+      slides?.[0]?.scrollIntoView({
+        inline: 'center',
+        block: 'nearest',
+        behavior: 'smooth',
+      })
+      smvPrevLogicalIdxRef.current = smvIdx
+      return
+    }
+
     const targetIdx = smvIdx + 1
     const slideEl = slides?.[targetIdx]
     if (!slideEl) return
     const cur = getSmvTrackIndexCentered(el)
-    if (cur === targetIdx) return
+    if (cur === targetIdx) {
+      smvPrevLogicalIdxRef.current = smvIdx
+      return
+    }
     const behavior = smvFirstLayoutRef.current ? 'auto' : 'smooth'
     smvFirstLayoutRef.current = false
-    slideEl.scrollIntoView({ inline: 'center', block: 'nearest', behavior })
+    if (behavior === 'auto') {
+      withInstantSmvScroll(el, () => {
+        slideEl.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'auto' })
+      })
+    } else {
+      slideEl.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' })
+    }
+    smvPrevLogicalIdxRef.current = smvIdx
   }, [isSmvCarousel, smvIdx, smvImages, smvSlotCount])
+
+  useLayoutEffect(() => {
+    if (!isSlideModalAutoSquare || slideImages.length === 0) {
+      slideModalFirstLayoutRef.current = true
+      setSlideModalScrollDotLogical(null)
+      return
+    }
+    setSlideModalScrollDotLogical(slideIdx)
+    if (slideImages.length === 1) {
+      slideModalPrevLogicalIdxRef.current = 0
+      return
+    }
+    const el = slideModalScrollRef.current
+    if (!el || suppressSlideModalScrollSyncRef.current) return
+    const slides = el.firstElementChild?.children
+    const prevLogical = slideModalPrevLogicalIdxRef.current
+    const curTrack = getLinearTrackIndexCentered(el)
+    const maxIdx = slideImages.length - 1
+
+    if (maxIdx > 0 && prevLogical === maxIdx && slideIdx === 0) {
+      if (curTrack === 1) {
+        slideModalPrevLogicalIdxRef.current = slideIdx
+        return
+      }
+      slideModalFirstLayoutRef.current = false
+      slides?.[slideImages.length + 1]?.scrollIntoView({
+        inline: 'center',
+        block: 'nearest',
+        behavior: 'smooth',
+      })
+      slideModalPrevLogicalIdxRef.current = slideIdx
+      return
+    }
+    if (maxIdx > 0 && prevLogical === 0 && slideIdx === maxIdx) {
+      if (curTrack === slideImages.length) {
+        slideModalPrevLogicalIdxRef.current = slideIdx
+        return
+      }
+      slideModalFirstLayoutRef.current = false
+      slides?.[0]?.scrollIntoView({
+        inline: 'center',
+        block: 'nearest',
+        behavior: 'smooth',
+      })
+      slideModalPrevLogicalIdxRef.current = slideIdx
+      return
+    }
+
+    const targetTrackIdx = slideIdx + 1
+    const slideEl = slides?.[targetTrackIdx]
+    if (!slideEl) return
+    if (curTrack === targetTrackIdx) {
+      slideModalPrevLogicalIdxRef.current = slideIdx
+      return
+    }
+    const behavior = slideModalFirstLayoutRef.current ? 'auto' : 'smooth'
+    slideModalFirstLayoutRef.current = false
+    suppressSlideModalScrollSyncRef.current = true
+    if (behavior === 'auto') {
+      withInstantSlideModalScroll(el, () => {
+        slideEl.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'auto' })
+      })
+    } else {
+      slideEl.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' })
+    }
+    slideModalPrevLogicalIdxRef.current = slideIdx
+    requestAnimationFrame(() => {
+      suppressSlideModalScrollSyncRef.current = false
+    })
+  }, [isSlideModalAutoSquare, slideIdx, slideImages])
 
   useEffect(() => {
     const el = smvScrollRef.current
     if (!el || !isSmvCarousel || !onSlideVerticalPreviewIndexChange) return
 
-    const settle = () => {
-      if (suppressSmvScrollSyncRef.current) return
+    const wrapToLogical = (logicalIdx, trackIdx) => {
       const slides = el.firstElementChild?.children
       if (!slides?.length) return
+      suppressSmvScrollSyncRef.current = true
+      withInstantSmvScroll(el, () => {
+        slides[trackIdx]?.scrollIntoView({
+          inline: 'center',
+          block: 'nearest',
+          behavior: 'auto',
+        })
+      })
+      smvPrevLogicalIdxRef.current = logicalIdx
+      onSlideVerticalPreviewIndexChange(logicalIdx)
+      requestAnimationFrame(() => {
+        suppressSmvScrollSyncRef.current = false
+      })
+    }
+
+    const settle = () => {
+      if (suppressSmvScrollSyncRef.current) return
       const ti = getSmvTrackIndexCentered(el)
 
       if (ti === 0) {
-        suppressSmvScrollSyncRef.current = true
-        slides[smvSlotCount]?.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'auto' })
-        onSlideVerticalPreviewIndexChange(smvSlotCount - 1)
-        requestAnimationFrame(() => {
-          suppressSmvScrollSyncRef.current = false
-        })
+        wrapToLogical(smvSlotCount - 1, smvSlotCount)
         return
       }
       if (ti === smvSlotCount + 1) {
-        suppressSmvScrollSyncRef.current = true
-        slides[1]?.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'auto' })
-        onSlideVerticalPreviewIndexChange(0)
-        requestAnimationFrame(() => {
-          suppressSmvScrollSyncRef.current = false
-        })
+        wrapToLogical(0, 1)
         return
       }
-      const logical = ti - 1
+      const logical = getSmvLogicalIndexFromTrackIndex(ti, smvSlotCount)
       if (logical === smvIdx) return
       onSlideVerticalPreviewIndexChange(logical)
     }
 
     const onScroll = () => {
+      if (!smvDotRafRef.current) {
+        smvDotRafRef.current = requestAnimationFrame(() => {
+          smvDotRafRef.current = null
+          if (suppressSmvScrollSyncRef.current) return
+          const ti = getSmvTrackIndexCentered(el)
+          const logical = getSmvLogicalIndexFromTrackIndex(ti, smvSlotCount)
+          setSmvScrollDotLogical((p) => (p === logical ? p : logical))
+        })
+      }
       if (smvScrollSettleTimer.current) window.clearTimeout(smvScrollSettleTimer.current)
-      smvScrollSettleTimer.current = window.setTimeout(settle, 100)
+      smvScrollSettleTimer.current = window.setTimeout(settle, 90)
+    }
+
+    const onScrollEnd = () => {
+      if (suppressSmvScrollSyncRef.current) return
+      settle()
     }
 
     el.addEventListener('scroll', onScroll, { passive: true })
+    el.addEventListener('scrollend', onScrollEnd)
 
     return () => {
       if (smvScrollSettleTimer.current) window.clearTimeout(smvScrollSettleTimer.current)
+      if (smvDotRafRef.current) {
+        window.cancelAnimationFrame(smvDotRafRef.current)
+        smvDotRafRef.current = null
+      }
       el.removeEventListener('scroll', onScroll)
+      el.removeEventListener('scrollend', onScrollEnd)
     }
   }, [isSmvCarousel, onSlideVerticalPreviewIndexChange, smvIdx, smvSlotCount])
 
+  useEffect(() => {
+    const el = slideModalScrollRef.current
+    if (!el || !isSlideModalAutoSquare || slideImages.length === 0 || !onSlidePreviewIndexChange)
+      return undefined
+
+    const wrapToLogical = (logicalIdx, trackIdx) => {
+      const slides = el.firstElementChild?.children
+      if (!slides?.length) return
+      suppressSlideModalScrollSyncRef.current = true
+      withInstantSlideModalScroll(el, () => {
+        slides[trackIdx]?.scrollIntoView({
+          inline: 'center',
+          block: 'nearest',
+          behavior: 'auto',
+        })
+      })
+      slideModalPrevLogicalIdxRef.current = logicalIdx
+      setSlideModalScrollDotLogical(logicalIdx)
+      onSlidePreviewIndexChange(logicalIdx)
+      requestAnimationFrame(() => {
+        suppressSlideModalScrollSyncRef.current = false
+      })
+    }
+
+    const settle = () => {
+      if (suppressSlideModalScrollSyncRef.current) return
+      if (!onSlidePreviewIndexChange) return
+      const ti = getLinearTrackIndexCentered(el)
+      if (slideImages.length > 1 && ti === 0) {
+        wrapToLogical(slideImages.length - 1, slideImages.length)
+        return
+      }
+      if (slideImages.length > 1 && ti === slideImages.length + 1) {
+        wrapToLogical(0, 1)
+        return
+      }
+      const logical = getLoopLogicalIndexFromTrackIndex(ti, slideImages.length)
+      setSlideModalScrollDotLogical(logical)
+      if (logical !== slideIdx) onSlidePreviewIndexChange(logical)
+    }
+
+    const onScroll = () => {
+      if (!slideModalDotRafRef.current) {
+        slideModalDotRafRef.current = requestAnimationFrame(() => {
+          slideModalDotRafRef.current = null
+          if (suppressSlideModalScrollSyncRef.current) return
+          const ti = getLinearTrackIndexCentered(el)
+          const logical = getLoopLogicalIndexFromTrackIndex(ti, slideImages.length)
+          setSlideModalScrollDotLogical((p) => (p === logical ? p : logical))
+        })
+      }
+      if (slideModalScrollSettleTimer.current) window.clearTimeout(slideModalScrollSettleTimer.current)
+      slideModalScrollSettleTimer.current = window.setTimeout(settle, 90)
+    }
+
+    const onScrollEnd = () => {
+      if (suppressSlideModalScrollSyncRef.current) return
+      settle()
+    }
+
+    el.addEventListener('scroll', onScroll, { passive: true })
+    el.addEventListener('scrollend', onScrollEnd)
+    return () => {
+      if (slideModalScrollSettleTimer.current) window.clearTimeout(slideModalScrollSettleTimer.current)
+      if (slideModalDotRafRef.current) {
+        window.cancelAnimationFrame(slideModalDotRafRef.current)
+        slideModalDotRafRef.current = null
+      }
+      el.removeEventListener('scroll', onScroll)
+      el.removeEventListener('scrollend', onScrollEnd)
+    }
+  }, [isSlideModalAutoSquare, slideImages, onSlidePreviewIndexChange, slideIdx])
+
   const onSmvCarouselPointerDown = (e) => {
-    if (e.pointerType !== 'mouse') return
-    if (e.button !== 0) return
+    if (e.pointerType === 'mouse' && e.button !== 0) return
     const shell = smvScrollRef.current
     if (!shell) return
     smvDragRef.current = { startX: e.clientX, scrollLeft: shell.scrollLeft }
@@ -305,7 +650,6 @@ export default function Preview({ state, t, onSlideVerticalPreviewIndexChange })
   }
 
   const onSmvCarouselPointerMove = (e) => {
-    if (e.pointerType !== 'mouse') return
     const d = smvDragRef.current
     const shell = smvScrollRef.current
     if (!d || !shell) return
@@ -313,13 +657,50 @@ export default function Preview({ state, t, onSlideVerticalPreviewIndexChange })
   }
 
   const onSmvCarouselPointerUp = (e) => {
-    if (e.pointerType !== 'mouse') return
+    const shell = smvScrollRef.current
     smvDragRef.current = null
     setSmvCarouselDragging(false)
     try {
       e.currentTarget.releasePointerCapture?.(e.pointerId)
     } catch {
       /* ignore */
+    }
+    if (shell) {
+      const slides = shell.firstElementChild?.children
+      const ti = getSmvTrackIndexCentered(shell)
+      slides?.[ti]?.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' })
+    }
+  }
+
+  const onSlideModalPointerDown = (e) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return
+    const shell = slideModalScrollRef.current
+    if (!shell) return
+    slideModalDragRef.current = { startX: e.clientX, scrollLeft: shell.scrollLeft }
+    setSlideModalDragging(true)
+    e.currentTarget.setPointerCapture?.(e.pointerId)
+  }
+
+  const onSlideModalPointerMove = (e) => {
+    const d = slideModalDragRef.current
+    const shell = slideModalScrollRef.current
+    if (!d || !shell) return
+    shell.scrollLeft = d.scrollLeft - (e.clientX - d.startX)
+  }
+
+  const onSlideModalPointerUp = (e) => {
+    const shell = slideModalScrollRef.current
+    slideModalDragRef.current = null
+    setSlideModalDragging(false)
+    try {
+      e.currentTarget.releasePointerCapture?.(e.pointerId)
+    } catch {
+      /* ignore */
+    }
+    if (shell) {
+      const slides = shell.firstElementChild?.children
+      const ti = getLinearTrackIndexCentered(shell)
+      slides?.[ti]?.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' })
     }
   }
 
@@ -349,6 +730,14 @@ export default function Preview({ state, t, onSlideVerticalPreviewIndexChange })
   }
 
   const gap = (state.buttonCount ?? 1) === 2 ? DUAL_BUTTON_GAP : 0
+  const choicePreviewFg = isChoiceButtonModalType(state.popupType)
+  const btn1PreviewFg = choicePreviewFg
+    ? state.button1?.textColor ?? BUTTON_TEXT_COLOR
+    : BUTTON_TEXT_COLOR
+  const btn2PreviewFg = choicePreviewFg
+    ? state.button2?.textColor ?? BUTTON_TEXT_COLOR
+    : BUTTON_TEXT_COLOR
+
   const buttonRowStyle =
     cfg.buttonBottom != null
       ? {
@@ -411,7 +800,7 @@ export default function Preview({ state, t, onSlideVerticalPreviewIndexChange })
                 >
                   <div
                     ref={smvScrollRef}
-                    className={`relative flex-shrink-0 ${HIDE_SCROLLBAR_CLASS} select-none`}
+                    className={`relative flex-shrink-0 ${HIDE_SCROLLBAR_CLASS} select-none ${PREVIEW_SMV_CAROUSEL_VIEW_CLASS}`}
                     onPointerDown={onSmvCarouselPointerDown}
                     onPointerMove={onSmvCarouselPointerMove}
                     onPointerUp={onSmvCarouselPointerUp}
@@ -456,7 +845,7 @@ export default function Preview({ state, t, onSlideVerticalPreviewIndexChange })
                               />
                             ) : (
                               <div className="w-full h-full flex items-center justify-center text-zinc-500 text-xs px-2 text-center">
-                                {tr.noImage || '배경 이미지 없음'}
+                                {tr.noImage || '이미지 없음'}
                               </div>
                             )}
                           </div>
@@ -464,37 +853,10 @@ export default function Preview({ state, t, onSlideVerticalPreviewIndexChange })
                       })}
                     </div>
                   </div>
-                  <div
-                    className="pointer-events-none absolute z-10"
-                    style={{
-                      left: SMV_CAROUSEL_CENTER_SLOT_LEFT,
-                      top: 0,
-                      width: SMV_CAROUSEL_SLIDE_W,
-                      height: smvSlideH,
-                    }}
-                  >
-                    <div
-                      className="pointer-events-none absolute flex items-center justify-center"
-                      style={{
-                        right: SMV_CAROUSEL_PAGINATION_INSET,
-                        bottom: SMV_CAROUSEL_PAGINATION_INSET,
-                        width: SLIDE_PAGINATION_W,
-                        height: SLIDE_PAGINATION_H,
-                        gap: SLIDE_PAGINATION_GAP,
-                        borderRadius: SLIDE_PAGINATION_H / 2,
-                        backgroundColor: SLIDE_PAGINATION_BG,
-                        fontSize: 10,
-                        fontWeight: 500,
-                        letterSpacing: '-0.02em',
-                        whiteSpace: 'nowrap',
-                        boxSizing: 'border-box',
-                      }}
-                    >
-                      <span style={{ color: '#ffffff' }}>{smvCurrent}</span>
-                      <span style={{ color: SLIDE_PAGINATION_TOTAL_COLOR }}>/</span>
-                      <span style={{ color: SLIDE_PAGINATION_TOTAL_COLOR }}>{smvTotal}</span>
-                    </div>
-                  </div>
+                  <SlideDotIndicators
+                    count={smvTotal}
+                    activeIndex={smvScrollDotLogical ?? smvIdx}
+                  />
                 </div>
                 ) : (
                   <div
@@ -548,7 +910,7 @@ export default function Preview({ state, t, onSlideVerticalPreviewIndexChange })
                           />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center text-zinc-500 text-xs px-2 text-center">
-                            {tr.noImage || '배경 이미지 없음'}
+                            {tr.noImage || '이미지 없음'}
                           </div>
                         )}
                       </div>
@@ -620,25 +982,81 @@ export default function Preview({ state, t, onSlideVerticalPreviewIndexChange })
               </div>
             ) : (
               <>
-                <div
-                  className="absolute inset-0 z-0"
-                  style={{
-                    backgroundColor: hasImage ? 'transparent' : POPUP_EMPTY_BACKGROUND,
-                  }}
-                >
-                  {hasImage ? (
-                    <img
-                      src={displayImageSrc}
-                      alt="Popup background"
-                      className="absolute inset-0 w-full h-full object-cover"
-                      style={{ display: 'block' }}
-                    />
-                  ) : (
-                    <div className="absolute inset-0 flex items-center justify-center text-zinc-500 text-sm">
-                      {tr.noImage || '배경 이미지 없음'}
+                {isSlideModalAutoSquare && slideImages.length > 0 ? (
+                  <>
+                    <div
+                      ref={slideModalScrollRef}
+                      className={`absolute inset-0 z-0 ${HIDE_SCROLLBAR_CLASS} select-none`}
+                      onPointerDown={onSlideModalPointerDown}
+                      onPointerMove={onSlideModalPointerMove}
+                      onPointerUp={onSlideModalPointerUp}
+                      onPointerCancel={onSlideModalPointerUp}
+                      style={{
+                        overflowX: 'auto',
+                        overflowY: 'hidden',
+                        scrollSnapType: 'x mandatory',
+                        scrollBehavior: 'smooth',
+                        overscrollBehaviorX: 'contain',
+                        WebkitOverflowScrolling: 'touch',
+                        touchAction: 'pan-x',
+                        cursor: slideModalDragging ? 'grabbing' : 'grab',
+                      }}
+                    >
+                      <div className="flex h-full flex-row" style={{ width: 'max-content' }}>
+                        {slideModalTrackSlides.map((item, i) => (
+                          <div
+                            key={item.key}
+                            className="flex-shrink-0 overflow-hidden"
+                            style={{
+                              width: cfg.width,
+                              height: cfg.height,
+                              scrollSnapAlign: 'center',
+                              backgroundColor: item.src ? 'transparent' : POPUP_EMPTY_BACKGROUND,
+                            }}
+                          >
+                            {item.src ? (
+                              <img
+                                src={item.src}
+                                alt=""
+                                draggable={false}
+                                className="pointer-events-none h-full w-full object-cover"
+                                style={{ display: 'block' }}
+                              />
+                            ) : (
+                              <div className="flex h-full w-full items-center justify-center px-2 text-center text-sm text-zinc-500">
+                                {tr.noImage || '이미지 없음'}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  )}
-                </div>
+                    <SlideDotIndicators
+                      count={slideImages.length}
+                      activeIndex={slideModalScrollDotLogical ?? slideIdx}
+                    />
+                  </>
+                ) : (
+                  <div
+                    className="absolute inset-0 z-0"
+                    style={{
+                      backgroundColor: hasImage ? 'transparent' : POPUP_EMPTY_BACKGROUND,
+                    }}
+                  >
+                    {hasImage ? (
+                      <img
+                        src={displayImageSrc}
+                        alt="Popup background"
+                        className="absolute inset-0 h-full w-full object-cover"
+                        style={{ display: 'block' }}
+                      />
+                    ) : (
+                      <div className="absolute inset-0 flex items-center justify-center text-zinc-500 text-sm">
+                        {tr.noImage || '이미지 없음'}
+                      </div>
+                    )}
+                  </div>
+                )}
                 {showButtons && (
                   <div
                     className="absolute flex items-center justify-center z-10"
@@ -654,7 +1072,7 @@ export default function Preview({ state, t, onSlideVerticalPreviewIndexChange })
                             height: BUTTON_HEIGHT,
                             borderRadius: BUTTON_RADIUS,
                             backgroundColor: state.button1.bgColor,
-                            color: BUTTON_TEXT_COLOR,
+                            color: btn1PreviewFg,
                             fontSize: BUTTON_FONT_SIZE,
                             boxSizing: 'border-box',
                             paddingLeft: BUTTON_HORIZONTAL_PADDING,
@@ -671,7 +1089,7 @@ export default function Preview({ state, t, onSlideVerticalPreviewIndexChange })
                             height: BUTTON_HEIGHT,
                             borderRadius: BUTTON_RADIUS,
                             backgroundColor: state.button2.bgColor,
-                            color: BUTTON_TEXT_COLOR,
+                            color: btn2PreviewFg,
                             fontSize: BUTTON_FONT_SIZE,
                             boxSizing: 'border-box',
                             paddingLeft: BUTTON_HORIZONTAL_PADDING,
@@ -690,7 +1108,7 @@ export default function Preview({ state, t, onSlideVerticalPreviewIndexChange })
                           height: BUTTON_HEIGHT,
                           borderRadius: BUTTON_RADIUS,
                           backgroundColor: state.button1.bgColor,
-                          color: BUTTON_TEXT_COLOR,
+                          color: btn1PreviewFg,
                           fontSize: BUTTON_FONT_SIZE,
                           boxSizing: 'border-box',
                           paddingLeft: BUTTON_HORIZONTAL_PADDING,
@@ -700,27 +1118,6 @@ export default function Preview({ state, t, onSlideVerticalPreviewIndexChange })
                         <span style={BUTTON_LINE_CLAMP_STYLE}>{state.button1.label}</span>
                       </button>
                     )}
-                  </div>
-                )}
-                {isSlideModal11 && (
-                  <div
-                    className="absolute z-10 flex items-center justify-center pointer-events-none"
-                    style={{
-                      right: SLIDE_PAGINATION_INSET,
-                      bottom: SLIDE_PAGINATION_INSET,
-                      width: SLIDE_PAGINATION_W,
-                      height: SLIDE_PAGINATION_H,
-                      gap: SLIDE_PAGINATION_GAP,
-                      borderRadius: SLIDE_PAGINATION_H / 2,
-                      backgroundColor: SLIDE_PAGINATION_BG,
-                      fontSize: 10,
-                      fontWeight: 500,
-                      letterSpacing: '-0.02em',
-                    }}
-                  >
-                    <span style={{ color: '#ffffff' }}>{slideCurrent}</span>
-                    <span style={{ color: SLIDE_PAGINATION_TOTAL_COLOR }}>/</span>
-                    <span style={{ color: SLIDE_PAGINATION_TOTAL_COLOR }}>{slideTotal}</span>
                   </div>
                 )}
               </>
