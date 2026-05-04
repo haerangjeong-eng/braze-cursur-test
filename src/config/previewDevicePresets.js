@@ -6,6 +6,9 @@ import {
 /** 미리보기 폰·태블릿 프레임 — HTML 내보내기와 무관 (빌더 전용) */
 export const PREVIEW_DEVICE_PRESET_DEFAULT_ID = 'iphone_13_14'
 
+/** 미리보기 태블릿 — Choice·Auto Square 등은 폰 기준 스케일 대신 설계 폭 유지(내보내기 태블릿 50%와 정합) */
+export const PREVIEW_DEVICE_TABLET_PRESET_ID = 'ipad_11'
+
 /**
  * @typedef {{ id: string, width: number, height: number, labelKey: string }} PreviewDevicePreset
  */

@@ -13,7 +13,6 @@ import {
   BOTTOM_SLIDE_UP_RADIUS,
   BOTTOM_SLIDE_UP_THUMB_PX,
   BOTTOM_SLIDE_UP_THUMB_RADIUS,
-  BOTTOM_SLIDE_UP_WIDE_MIN_W,
   BOTTOM_SLIDE_UP_ANIM_DURATION_S,
   BOTTOM_SLIDE_UP_ANIM_EASING,
   BOTTOM_SLIDE_UP_ANIM_FROM_BOTTOM_PX,
@@ -51,8 +50,6 @@ export default function BottomSlideUpPreview({ state, tr }) {
   const closeBtnBg = isLightApp ? '#3D3D3D' : '#E3E3E4'
   const closeIconColor = isLightApp ? '#F3F3F3' : '#222222'
 
-  const overlayAlpha = (state.overlayOpacity ?? 70) / 100
-
   const [visible, setVisible] = useState(true)
   /** IAM 퇴장: slide-down 후 숨김 */
   const [exiting, setExiting] = useState(false)
@@ -78,7 +75,6 @@ export default function BottomSlideUpPreview({ state, tr }) {
     exitDoneRef.current = false
   }, [
     mode,
-    state.overlayOpacity,
     state.imageSource,
     state.bottomSlideUpText,
     state.popupType,
@@ -109,13 +105,7 @@ export default function BottomSlideUpPreview({ state, tr }) {
   }
 
   return (
-    <div
-      className="absolute inset-0 overflow-hidden rounded-[inherit] bg-white"
-    >
-      <div
-        className="pointer-events-none absolute inset-0 z-0 transition-colors"
-        style={{ backgroundColor: `rgba(0, 0, 0, ${overlayAlpha})` }}
-      />
+    <div className="absolute inset-0 overflow-hidden rounded-[inherit] bg-transparent">
       {showBar ? (
         <>
         <style>{`
@@ -132,9 +122,6 @@ export default function BottomSlideUpPreview({ state, tr }) {
           }
           .bsu-preview-ios-down {
             animation: BsuIosPreviewSlideDown ${d}s ${ease} forwards;
-          }
-          @container (min-width: ${BOTTOM_SLIDE_UP_WIDE_MIN_W}px) {
-            .bsu-slide-outer { padding-left: 0 !important; padding-right: 0 !important; }
           }
         `}</style>
         <div
@@ -174,11 +161,11 @@ export default function BottomSlideUpPreview({ state, tr }) {
             }
           >
             <div
-              className={`flex-shrink-0 overflow-hidden ${isIconType ? 'flex items-center justify-center' : ''}`}
+              className={`flex-shrink-0 ${isIconType ? 'flex items-center justify-center overflow-visible' : 'overflow-hidden'}`}
               style={{
                 width: thumbPx,
                 height: thumbPx,
-                borderRadius: thumbRadius,
+                borderRadius: isIconType ? 0 : thumbRadius,
                 backgroundColor: imgOk ? 'transparent' : POPUP_EMPTY_BACKGROUND,
               }}
             >

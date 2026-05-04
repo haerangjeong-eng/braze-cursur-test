@@ -16,13 +16,13 @@ import {
   BOTTOM_SLIDE_UP_SCREEN_W,
   BOTTOM_SLIDE_UP_OUTER_PAD_H,
   BOTTOM_SLIDE_UP_PAD_X,
-  BOTTOM_SLIDE_UP_WIDE_MIN_W,
   BOTTOM_SLIDE_UP_RADIUS,
   BOTTOM_SLIDE_UP_ICON_THUMB_PX,
   BOTTOM_SLIDE_UP_THUMB_PX,
   BOTTOM_SLIDE_UP_THUMB_RADIUS,
   getBottomSlideUpThumbSrc,
   getPopupTypeConfig,
+  IAM_STAGE_PAD_PX,
   POPUP_CONTAINER_BORDER_RADIUS,
   POPUP_EMPTY_BACKGROUND,
   isSlideModalAutoSquareType,
@@ -81,43 +81,59 @@ function exportOverlayRgba(state) {
 
 function exportFooterRow(popupW, dontShowAgainEscaped, closeTextEscaped) {
   const footStyle = `display:flex;align-items:center;justify-content:space-between;width:100%;max-width:${popupW}px;min-height:20px;padding:0;box-sizing:border-box;margin-top:10px;background:transparent;`
+  const noTap = `cursor:default;-webkit-tap-highlight-color:transparent;`
   return `<footer style="${footStyle}">
-    <button type="button" onclick="brazeDismiss()" style="color:#fff;font-size:${FOOTER_FONT_SIZE}px;background:transparent;border:none;padding:0;cursor:pointer;">${dontShowAgainEscaped}</button>
-    <button type="button" onclick="brazeDismiss()" style="color:#fff;font-size:${FOOTER_FONT_SIZE}px;background:transparent;border:none;padding:0;cursor:pointer;display:flex;align-items:center;gap:4px;">${closeTextEscaped} ${CLOSE_ICON_SVG}</button>
+    <button type="button" onclick="brazeDismiss()" style="color:#fff;font-size:${FOOTER_FONT_SIZE}px;background:transparent;border:none;padding:0;padding-left:4px;${noTap}">${dontShowAgainEscaped}</button>
+    <button type="button" onclick="brazeDismiss()" style="color:#fff;font-size:${FOOTER_FONT_SIZE}px;background:transparent;border:none;padding:0;${noTap}display:flex;align-items:center;gap:4px;">${closeTextEscaped} ${CLOSE_ICON_SVG}</button>
   </footer>`
 }
 
 /**
- * Braze IAM Studio 패턴: 전체 뷰포트 fixed 딤 + 중앙 스테이지.
- * - body/html은 wrapHtmlDocument에서 height:100%와 맞춤
- * - 스테이지 padding 18px (Studio `.modal_wrapper`와 동일)
- * - 540px–1024px: 컬럼 width 50%, max-width 설계 폭 (Studio 미디어쿼리 대응)
- * - studioResponsiveShell: IAM Studio와 동일 — 스테이지 가로 10% 패딩, 컬럼 width 100%·max 설계폭(예: 310), 600–1024px에서 50%
+ * Braze IAM 패턴: 전체 뷰포트 fixed 딤 + 스테이지.
+ * - 스테이지 좌우 패딩: {@link IAM_STAGE_PAD_PX} (Bottom Slide Up bare 제외)
+ * - `iamLayout`: simple_icon(80%·태블릿 50%), carousel(310px 고정), default(100%·태블릿 50%+설계 max-width)
  *
- * @param {{ shellPaddingPx?: number, studioResponsiveShell?: boolean }} [options]
+ * @param {{ shellPaddingPx?: number, iamLayout?: 'default'|'carousel'|'simple_icon', dismissOnBackdrop?: boolean, bottomSlideUpBare?: boolean }} [options]
  */
 function exportIamViewportShell(state, columnWidthPx, innerColumnHtml, options = {}) {
-  const overlayRgba = exportOverlayRgba(state)
-  const pad = options.shellPaddingPx ?? 18
+  const bottomSlideUpBare = options.bottomSlideUpBare === true
+  const overlayRgba = bottomSlideUpBare ? 'transparent' : exportOverlayRgba(state)
+  const pad = options.shellPaddingPx ?? IAM_STAGE_PAD_PX
   const w = columnWidthPx
-  const studioShell = options.studioResponsiveShell === true
-  const stagePad = studioShell ? `${pad}px 10%` : `${pad}px`
-  const columnRules = studioShell
-    ? `[data-iam-col]{width:100%;max-width:${w}px;margin-left:auto;margin-right:auto;box-sizing:border-box;flex-shrink:0;}
+  /** @type {'default'|'carousel'|'simple_icon'} */
+  const iamLayout = options.iamLayout ?? 'default'
+  const dismissOnBackdrop = options.dismissOnBackdrop !== false
+  const stagePad = bottomSlideUpBare ? '0' : `${pad}px`
+  const colPointer = dismissOnBackdrop ? 'pointer-events:auto;' : ''
+  let columnRules
+  if (bottomSlideUpBare) {
+    columnRules = `[data-iam-col]{width:100%;max-width:100%;margin-left:auto;margin-right:auto;box-sizing:border-box;flex-shrink:0;${colPointer}}`
+  } else if (iamLayout === 'carousel') {
+    const fixed = w
+    columnRules = `[data-iam-col]{width:100%;max-width:${fixed}px;margin-left:auto;margin-right:auto;box-sizing:border-box;flex-shrink:0;${colPointer}}`
+  } else if (iamLayout === 'simple_icon') {
+    columnRules = `[data-iam-col]{width:80%;max-width:100%;margin-left:auto;margin-right:auto;box-sizing:border-box;flex-shrink:0;${colPointer}}
 @media screen and (min-width:600px) and (max-width:1024px){
-  [data-iam-col]{width:50%!important;max-width:${w}px!important;}
+  [data-iam-col]{width:50%!important;}
 }`
-    : `[data-iam-col]{width:${w}px;max-width:100%;margin-left:auto;margin-right:auto;box-sizing:border-box;flex-shrink:0;}
+  } else {
+    columnRules = `[data-iam-col]{width:100%;max-width:100%;margin-left:auto;margin-right:auto;box-sizing:border-box;flex-shrink:0;${colPointer}}
 @media screen and (min-width:540px) and (max-width:1024px){
   [data-iam-col]{width:50%!important;max-width:${w}px!important;}
 }`
+  }
+  const overlayPe = dismissOnBackdrop
+    ? `pointer-events:auto;cursor:pointer;-webkit-tap-highlight-color:transparent;`
+    : `pointer-events:none;`
+  const overlayClick = dismissOnBackdrop ? ` onclick="brazeDismiss()"` : ''
+  const stagePe = dismissOnBackdrop ? `pointer-events:none;` : ''
   return `<style>
 [data-braze-iam-shell]{position:relative;width:100%;min-height:100%;min-height:100dvh;box-sizing:border-box;}
 ${columnRules}
 </style>
 <div data-braze-iam-stack data-braze-iam-shell style="position:relative;width:100%;min-height:100vh;min-height:100dvh;box-sizing:border-box;">
-  <div style="position:fixed;top:0;left:0;right:0;bottom:0;width:100%;height:100%;min-height:100vh;min-height:100dvh;background:${overlayRgba};z-index:0;pointer-events:none;"></div>
-  <div data-braze-stage style="position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;justify-content:center;box-sizing:border-box;width:100%;min-height:100vh;min-height:100dvh;padding:${stagePad};">
+  <div${overlayClick} style="position:fixed;top:0;left:0;right:0;bottom:0;width:100%;height:100%;min-height:100vh;min-height:100dvh;background:${overlayRgba};z-index:0;${overlayPe}"></div>
+  <div data-braze-stage style="position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;justify-content:center;box-sizing:border-box;width:100%;min-height:100vh;min-height:100dvh;padding:${stagePad};${stagePe}">
     <div data-iam-col>
 ${innerColumnHtml}
     </div>
@@ -186,15 +202,14 @@ ${innerHtml}
 </html>`
 }
 
-/** Braze JS 브리지 닫기 + 로드 후 4초 자동 닫힘 */
-function buildBrazeBridgeAndAutoCloseScript() {
+/** Braze / Appboy 브리지 `brazeDismiss`만 노출 — 자동 닫힘 없음(사용자 액션으로만 닫기) */
+function buildBrazeBridgeScript() {
   return `<script>(function(){
 function brazeDismiss(){try{
 if(window.brazeBridge&&typeof brazeBridge.closeMessage==='function'){brazeBridge.closeMessage();return;}
 if(window.appboyBridge&&typeof appboyBridge.closeMessage==='function'){appboyBridge.closeMessage();return;}
 }catch(e){}}
 window.brazeDismiss=brazeDismiss;
-window.addEventListener('load',function(){setTimeout(function(){brazeDismiss();},4000);});
 })();<\/script>`
 }
 
@@ -234,7 +249,7 @@ setTimeout(finish,${fallbackMs});
 }
 
 function finalizeHtmlExport(state, visualHtml) {
-  return wrapHtmlDocument(state, visualHtml + buildBrazeBridgeAndAutoCloseScript())
+  return wrapHtmlDocument(state, visualHtml + buildBrazeBridgeScript())
 }
 
 const BUTTON_TEXT_CLAMP =
@@ -432,7 +447,7 @@ ${exportIamViewportShell(
   </div>
   ${exportFooterRow(popupW, dontShowAgain, closeText)}
 </div>`,
-    { studioResponsiveShell: true }
+    { iamLayout: 'carousel' }
   )}
 <script src="${jqSrc}"><\/script>
 <script src="${slickSrc}"><\/script>
@@ -504,8 +519,9 @@ ${exportIamViewportShell(
     </div>
   </div>
   ${exportFooterRow(popupW, dontShowAgain, closeText)}
-</div>`
-    )}
+</div>`,
+    { iamLayout: 'default' }
+  )}
 `
     return finalizeHtmlExport(state, body)
   }
@@ -568,7 +584,8 @@ ${exportIamViewportShell(
     </div>
   </div>
   ${exportFooterRow(popupW, dontShowAgain, closeText)}
-</div>`
+</div>`,
+    { iamLayout: 'default' }
   )}
 <script src="${jqSrc}"><\/script>
 <script src="${slickSrc}"><\/script>
@@ -680,7 +697,7 @@ ${exportIamViewportShell(
   </div>
   ${exportFooterRow(popupW, dontShowAgain, closeText)}
 </div>`,
-    { studioResponsiveShell: true }
+    { iamLayout: 'simple_icon' }
   )}
 `
   return finalizeHtmlExport(state, simpleBody)
@@ -721,13 +738,12 @@ function getBottomSlideUpHtml(state, t) {
     ? 'max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;display:block;'
     : 'width:100%;height:100%;object-fit:cover;display:block;'
   const thumbBoxStyle = isIconType
-    ? `flex-shrink:0;width:${thumbPx}px;height:${thumbPx}px;border-radius:${thumbRadius};overflow:hidden;background:${thumbBoxBg};display:flex;align-items:center;justify-content:center;`
+    ? `flex-shrink:0;width:${thumbPx}px;height:${thumbPx}px;border-radius:0;overflow:visible;background:transparent;display:flex;align-items:center;justify-content:center;`
     : `flex-shrink:0;width:${thumbPx}px;height:${thumbPx}px;border-radius:${thumbRadius};overflow:hidden;background:${thumbBoxBg};`
 
   const W = BOTTOM_SLIDE_UP_SCREEN_W
   const variantLabel = isIconType ? 'icon' : 'character'
 
-  const shellBg = '#ffffff'
   const fromB = BOTTOM_SLIDE_UP_ANIM_FROM_BOTTOM_PX
   const d = BOTTOM_SLIDE_UP_ANIM_DURATION_S
   const ease = BOTTOM_SLIDE_UP_ANIM_EASING
@@ -745,17 +761,13 @@ function getBottomSlideUpHtml(state, t) {
 .bsu-bottom-slide-down{animation:bsuBottomSlideDown ${d}s ${ease} forwards;}
 .bsu-ios-bottom-slide-down{animation:bsuIosBottomSlideDown ${d}s ${ease} forwards;}
 [data-bsu-slide]{position:absolute;left:0;right:0;z-index:1;display:flex;justify-content:center;align-items:center;box-sizing:border-box;padding:0 ${BOTTOM_SLIDE_UP_OUTER_PAD_H}px;min-height:${BOTTOM_SLIDE_UP_BAR_HEIGHT}px;}
-@media screen and (min-width:${BOTTOM_SLIDE_UP_WIDE_MIN_W}px){
-  [data-bsu-slide]{padding-left:0!important;padding-right:0!important;}
-}
 </style>
 ${exportIamViewportShell(
     state,
     W,
     `  <div style="position:relative;width:100%;box-sizing:border-box;">
-  <div style="position:relative;width:100%;max-width:${W}px;min-height:100vh;margin:0 auto;overflow:hidden;font-family:${SMV_TEXT_FONT};box-sizing:border-box;background:${shellBg};">
   <div data-bsu-slide>
-    <div data-bsu-root style="width:100%;max-width:${BOTTOM_SLIDE_UP_CONTENT_MAX_W}px;height:${BOTTOM_SLIDE_UP_BAR_HEIGHT}px;display:flex;flex-direction:row;align-items:center;box-sizing:border-box;padding-left:${BOTTOM_SLIDE_UP_PAD_X}px;padding-right:${BOTTOM_SLIDE_UP_PAD_X}px;gap:${BOTTOM_SLIDE_UP_GAP}px;border-radius:${BOTTOM_SLIDE_UP_RADIUS}px;background:${barBg};${barPointer}"${barOnclick}>
+    <div data-bsu-root style="width:100%;max-width:${BOTTOM_SLIDE_UP_CONTENT_MAX_W}px;height:${BOTTOM_SLIDE_UP_BAR_HEIGHT}px;display:flex;flex-direction:row;align-items:center;box-sizing:border-box;padding-left:${BOTTOM_SLIDE_UP_PAD_X}px;padding-right:${BOTTOM_SLIDE_UP_PAD_X}px;gap:${BOTTOM_SLIDE_UP_GAP}px;border-radius:${BOTTOM_SLIDE_UP_RADIUS}px;background:${barBg};font-family:${SMV_TEXT_FONT};${barPointer}"${barOnclick}>
     <div style="${thumbBoxStyle}">
       <img src="${img}" alt="" style="${thumbImgStyle}">
     </div>
@@ -767,7 +779,6 @@ ${exportIamViewportShell(
     </button>
   </div>
   </div>
-  </div>
 </div>
 <script>(function(){
 function boot(){
@@ -777,12 +788,13 @@ var ios=/ipad|iphone|ipod|macintosh/i.test(navigator.userAgent||"");
 s.classList.add(ios?"bsu-ios-bottom-slide-up":"bsu-bottom-slide-up");
 }
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",boot);else boot();
-})();<\/script>`
-  )}
+})();<\/script>`,
+    { dismissOnBackdrop: false, bottomSlideUpBare: true }
+)}
 `
   return wrapHtmlDocument(
     state,
-    bsuBody + buildBrazeBridgeAndAutoCloseScript() + buildBottomSlideUpDismissOverride()
+    bsuBody + buildBrazeBridgeScript() + buildBottomSlideUpDismissOverride()
   )
 }
 
@@ -828,9 +840,11 @@ export function getPopupHtml(state, t = {}) {
   const closeText = escapeHtml(t.close || 'Close')
   const emptyBg = POPUP_EMPTY_BACKGROUND
 
+  const bgImgStyle = `position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;cursor:default;-webkit-tap-highlight-color:transparent;pointer-events:none;`
+  const bgEmptyStyle = `position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#a1a1aa;font-size:14px;background:${emptyBg};cursor:default;-webkit-tap-highlight-color:transparent;`
   const bgContent = hasImage
-    ? `<img src="${escapeHtml(resolveExportAssetUrl(state, imgSrc))}" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;">`
-    : `<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#a1a1aa;font-size:14px;background:${emptyBg};">${noImageText}</div>`
+    ? `<img src="${escapeHtml(resolveExportAssetUrl(state, imgSrc))}" alt="" style="${bgImgStyle}">`
+    : `<div style="${bgEmptyStyle}">${noImageText}</div>`
 
   const isTwo = (state.buttonCount ?? 1) === 2
   const btn1Label = escapeHtml(state.button1?.label ?? '확인')
@@ -844,15 +858,16 @@ export function getPopupHtml(state, t = {}) {
   const btnLabel = (label) =>
     `<span style="${BUTTON_TEXT_CLAMP}">${label}</span>`
 
+  const btnNoTap = `cursor:default;-webkit-tap-highlight-color:transparent;`
   const btn1Nav = buttonNavigateOnclickAttr(state.button1?.deeplink)
   const btn2Nav = buttonNavigateOnclickAttr(state.button2?.deeplink)
   const buttonsHtml = isTwo
     ? `
-    <button type="button"${btn1Nav} style="flex:1 1 0;min-width:0;max-width:${DUAL_BUTTON_WIDTH}px;height:${BUTTON_HEIGHT}px;border-radius:${BUTTON_RADIUS}px;background-color:${btn1Bg};color:${btn1Fg};font-size:15px;font-weight:500;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;${btnPad}">${btnLabel(btn1Label)}</button>
-    <button type="button"${btn2Nav} style="flex:1 1 0;min-width:0;max-width:${DUAL_BUTTON_WIDTH}px;height:${BUTTON_HEIGHT}px;border-radius:${BUTTON_RADIUS}px;background-color:${btn2Bg};color:${btn2Fg};font-size:15px;font-weight:500;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;${btnPad}">${btnLabel(btn2Label)}</button>
+    <button type="button"${btn1Nav} style="flex:1 1 0;min-width:0;max-width:${DUAL_BUTTON_WIDTH}px;height:${BUTTON_HEIGHT}px;border-radius:${BUTTON_RADIUS}px;background-color:${btn1Bg};color:${btn1Fg};font-size:15px;font-weight:500;border:none;${btnNoTap}display:flex;align-items:center;justify-content:center;${btnPad}">${btnLabel(btn1Label)}</button>
+    <button type="button"${btn2Nav} style="flex:1 1 0;min-width:0;max-width:${DUAL_BUTTON_WIDTH}px;height:${BUTTON_HEIGHT}px;border-radius:${BUTTON_RADIUS}px;background-color:${btn2Bg};color:${btn2Fg};font-size:15px;font-weight:500;border:none;${btnNoTap}display:flex;align-items:center;justify-content:center;${btnPad}">${btnLabel(btn2Label)}</button>
   `
     : `
-    <button type="button"${btn1Nav} style="width:100%;max-width:${SINGLE_BUTTON_WIDTH}px;height:${BUTTON_HEIGHT}px;border-radius:${BUTTON_RADIUS}px;background-color:${btn1Bg};color:${btn1Fg};font-size:15px;font-weight:500;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;${btnPad}">${btnLabel(btn1Label)}</button>
+    <button type="button"${btn1Nav} style="width:100%;max-width:${SINGLE_BUTTON_WIDTH}px;height:${BUTTON_HEIGHT}px;border-radius:${BUTTON_RADIUS}px;background-color:${btn1Bg};color:${btn1Fg};font-size:15px;font-weight:500;border:none;${btnNoTap}display:flex;align-items:center;justify-content:center;flex-shrink:0;${btnPad}">${btnLabel(btn1Label)}</button>
   `
 
   const gapStyle = isTwo ? `gap:${DUAL_BUTTON_GAP}px;` : ''
@@ -863,7 +878,8 @@ export function getPopupHtml(state, t = {}) {
       : `top:${cfg.buttonTop}px;`
   const btnRowJustify = isTwo ? 'space-between' : 'center'
 
-  const innerBgLayer = `<div style="position:absolute;inset:0;z-index:0;background:transparent;">${bgContent}</div>`
+  const bgLayerNav = buttonNavigateOnclickAttr(state.button1?.deeplink)
+  const innerBgLayer = `<div style="position:absolute;inset:0;z-index:0;background:transparent;cursor:default;-webkit-tap-highlight-color:transparent;"${bgLayerNav}>${bgContent}</div>`
 
   const buttonsBlock = showButtons
     ? `<div style="position:absolute;left:0;right:0;${btnEdgeStyle}height:${BUTTON_HEIGHT}px;display:flex;align-items:center;justify-content:${btnRowJustify};box-sizing:border-box;width:100%;padding:0 20px;${gapStyle}z-index:10;">
@@ -883,7 +899,8 @@ ${exportIamViewportShell(
   </div>
   ${exportFooterRow(popupW, dontShowAgain, closeText)}
 </div>
-</div>`
+</div>`,
+    { iamLayout: 'default' }
   )}
 `
   return finalizeHtmlExport(state, defaultBody)

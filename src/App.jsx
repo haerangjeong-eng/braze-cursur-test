@@ -125,9 +125,15 @@ export default function App() {
     () => getPreviewDevicePreset(previewDevicePresetId),
     [previewDevicePresetId]
   )
+  /** 미리보기 패널에서 딥 탭 시 숨김 — Bottom Slide Up은 Preview 내부에서 비활성 */
+  const [previewDismissed, setPreviewDismissed] = useState(false)
 
   useEffect(() => {
     setCopyValidationHintsVisible(false)
+  }, [state.popupType])
+
+  useEffect(() => {
+    setPreviewDismissed(false)
   }, [state.popupType])
 
   useEffect(() => {
@@ -597,17 +603,34 @@ export default function App() {
               />
             </div>
             <div className="flex min-h-0 w-full flex-1 flex-col items-center justify-center">
-              <Preview
-                state={state}
-                t={t}
-                previewScreenW={previewDevice.width}
-                previewScreenH={previewDevice.height}
-                previewDevicePresetId={previewDevicePresetId}
-                onSlideVerticalPreviewIndexChange={(idx) =>
-                  update('slideVerticalPreviewIndex', idx)
-                }
-                onSlidePreviewIndexChange={(idx) => update('slidePreviewIndex', idx)}
-              />
+              {previewDismissed ? (
+                <div className="flex min-h-[220px] w-full max-w-sm flex-col items-center justify-center gap-4 rounded-xl border border-zinc-700/90 bg-zinc-900/50 px-6 py-10 text-center">
+                  <p className="text-sm text-zinc-400">
+                    {t.previewBackdropClosedHint ??
+                      '미리보기를 닫았습니다. 다시 보려면 아래를 누르세요.'}
+                  </p>
+                  <button
+                    type="button"
+                    className="rounded-lg bg-zinc-100 px-4 py-2 text-sm font-medium text-zinc-900"
+                    onClick={() => setPreviewDismissed(false)}
+                  >
+                    {t.previewBackdropShowAgain ?? '미리보기 다시 보기'}
+                  </button>
+                </div>
+              ) : (
+                <Preview
+                  state={state}
+                  t={t}
+                  previewScreenW={previewDevice.width}
+                  previewScreenH={previewDevice.height}
+                  previewDevicePresetId={previewDevicePresetId}
+                  onSlideVerticalPreviewIndexChange={(idx) =>
+                    update('slideVerticalPreviewIndex', idx)
+                  }
+                  onSlidePreviewIndexChange={(idx) => update('slidePreviewIndex', idx)}
+                  onBackdropDismiss={() => setPreviewDismissed(true)}
+                />
+              )}
             </div>
           </div>
         </section>

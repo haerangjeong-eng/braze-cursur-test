@@ -32,6 +32,7 @@ import {
   SMV_SIMPLE_ICON_PAD_TOP,
   SMV_SLIDE_RADIUS,
   getSmvCarouselSlideHeight,
+  IAM_STAGE_PAD_PX,
   PREVIEW_PHONE_IPHONE_13_14_H,
   PREVIEW_PHONE_IPHONE_13_14_W,
   SMV_TITLE_DESC_GAP,
@@ -53,7 +54,10 @@ import {
   getSmvLogicalIndexFromTrackIndex,
   normalizeSlideVerticalImages,
 } from '../utils/slideVertical'
-import { PREVIEW_DEVICE_PRESET_DEFAULT_ID } from '../config/previewDevicePresets'
+import {
+  PREVIEW_DEVICE_PRESET_DEFAULT_ID,
+  PREVIEW_DEVICE_TABLET_PRESET_ID,
+} from '../config/previewDevicePresets'
 import { tryPreviewNavigateToDeeplink } from '../utils/previewNavigate'
 
 const PREVIEW_SMV_CAROUSEL_VIEW_CLASS = 'preview-smv-carousel-view'
@@ -138,7 +142,22 @@ function getLinearTrackIndexCentered(viewportEl) {
   return best
 }
 
-const POPUP_SIDE_MARGIN = 14
+/** Choice·Auto Square 미리보기: 기준 폭 390pt(iPhone 13/14) 대비 스케일 */
+function scaleChoicePreviewCfg(cfg, scale) {
+  return {
+    ...cfg,
+    width: cfg.width * scale,
+    height: cfg.height * scale,
+    buttonTop: cfg.buttonTop != null ? cfg.buttonTop * scale : cfg.buttonTop,
+    buttonBottom: cfg.buttonBottom != null ? cfg.buttonBottom * scale : cfg.buttonBottom,
+  }
+}
+
+const NO_TOUCH_FEEDBACK_STYLE = {
+  WebkitTapHighlightColor: 'transparent',
+  cursor: 'default',
+}
+
 const BUTTON_HEIGHT = 48
 const BUTTON_RADIUS = 4
 const BUTTON_HORIZONTAL_PADDING = 16
@@ -260,6 +279,8 @@ export default function Preview({
   t,
   onSlideVerticalPreviewIndexChange,
   onSlidePreviewIndexChange,
+  /** Bottom Slide Up 제외: 딤(오버레이) 탭 시 호출 — 미리보기만 닫기 등 */
+  onBackdropDismiss,
   previewScreenW = PREVIEW_PHONE_IPHONE_13_14_W,
   previewScreenH = PREVIEW_PHONE_IPHONE_13_14_H,
   previewDevicePresetId = PREVIEW_DEVICE_PRESET_DEFAULT_ID,
@@ -274,9 +295,23 @@ export default function Preview({
   const isSmvCarousel = isCarouselThumbPopupType(state.popupType)
   const isSimpleIconModal = isSimpleIconModalPopupType(state.popupType)
   const isChoiceButtonModal = isChoiceButtonModalType(state.popupType)
-  /** IAM Studio式: 스테이지 `px 10%` + 컬럼 `100%`·`max(310)` — 캐러셀·Simple Icon (참고 HTML `.center { width: 310px }` / export `data-iam-col`과 동일) */
-  const useSmvStudioMargins = isSmvCarousel || isSimpleIconModal
-  const useStudioShellMargins = useSmvStudioMargins
+  /** 태블릿 프리뷰는 뷰포트가 넓어서 스케일하면 모달이 비정상적으로 커짐 → 설계 px 유지 */
+  const isTabletPreviewPreset =
+    previewDevicePresetId === PREVIEW_DEVICE_TABLET_PRESET_ID
+  const needsPreviewScale =
+    (isChoiceButtonModal || isSlideModalAutoSquare) && !isTabletPreviewPreset
+  const previewScale = needsPreviewScale
+    ? previewScreenW / PREVIEW_PHONE_IPHONE_13_14_W
+    : 1
+  const pvCfg = useMemo(
+    () =>
+      needsPreviewScale ? scaleChoicePreviewCfg(cfg, previewScale) : cfg,
+    [needsPreviewScale, cfg, previewScale]
+  )
+  /** 내보내기 `iamLayout`과 동일: 캐러셀 310px 고정 / Simple Icon 80%·태블릿 50% / 그 외 100% — 스테이지는 `IAM_STAGE_PAD_PX`만 */
+  const useCarouselIamColumn = isSmvCarousel
+  const useSimpleIconIamColumn = isSimpleIconModal
+  const useIamShellInnerFullWidth = useCarouselIamColumn || useSimpleIconIamColumn
   const studioShellColumnMaxW = SMV_MODAL_W
   const isBottomSlideUp = isBottomSlideUpType(state.popupType)
   const smvSlideH = getSmvCarouselSlideHeight(state.popupType)
@@ -703,8 +738,8 @@ export default function Preview({
   }
 
   const popupContainerStyle = {
-    width: cfg.width,
-    height: cfg.height,
+    width: pvCfg.width,
+    height: pvCfg.height,
     backgroundColor: 'transparent',
     borderRadius: POPUP_CONTAINER_BORDER_RADIUS,
     overflow: 'hidden',
@@ -712,7 +747,7 @@ export default function Preview({
   }
 
   const smvContainerStyle = {
-    width: cfg.width,
+    width: needsPreviewScale ? pvCfg.width : cfg.width,
     height: 'auto',
     backgroundColor: '#ffffff',
     borderRadius: POPUP_CONTAINER_BORDER_RADIUS,
@@ -721,7 +756,6 @@ export default function Preview({
     boxSizing: 'border-box',
   }
 
-  const gap = (state.buttonCount ?? 1) === 2 ? DUAL_BUTTON_GAP : 0
   const choicePreviewFg = isChoiceButtonModalType(state.popupType)
   const btn1PreviewFg = choicePreviewFg
     ? state.button1?.textColor ?? BUTTON_TEXT_COLOR
@@ -730,27 +764,44 @@ export default function Preview({
     ? state.button2?.textColor ?? BUTTON_TEXT_COLOR
     : BUTTON_TEXT_COLOR
 
+  const btnLayoutScale = needsPreviewScale ? previewScale : 1
+  const btnH = BUTTON_HEIGHT * btnLayoutScale
+  const dualW = DUAL_BUTTON_WIDTH * btnLayoutScale
+  const singleW = SINGLE_BUTTON_WIDTH * btnLayoutScale
+  const btnFs = BUTTON_FONT_SIZE * btnLayoutScale
+  const gapDualScaled = DUAL_BUTTON_GAP * btnLayoutScale
+  const gap =
+    (state.buttonCount ?? 1) === 2 ? gapDualScaled : 0
+  const padHScaled = 20 * btnLayoutScale
+  const choiceBtnRadius = BUTTON_RADIUS * btnLayoutScale
+  const choicePadH = BUTTON_HORIZONTAL_PADDING * btnLayoutScale
+  const footerContentWidth = useIamShellInnerFullWidth
+    ? '100%'
+    : needsPreviewScale
+      ? pvCfg.width
+      : frameDims.width
+
   const buttonRowStyle = isChoiceButtonModal
-    ? cfg.buttonBottom != null
+    ? pvCfg.buttonBottom != null
       ? {
           left: 0,
           right: 0,
-          bottom: cfg.buttonBottom,
-          height: BUTTON_HEIGHT,
+          bottom: pvCfg.buttonBottom,
+          height: btnH,
           gap,
-          paddingLeft: 20,
-          paddingRight: 20,
+          paddingLeft: padHScaled,
+          paddingRight: padHScaled,
           boxSizing: 'border-box',
           justifyContent: (state.buttonCount ?? 1) === 2 ? 'space-between' : 'center',
         }
       : {
           left: 0,
           right: 0,
-          top: cfg.buttonTop,
-          height: BUTTON_HEIGHT,
+          top: pvCfg.buttonTop,
+          height: btnH,
           gap,
-          paddingLeft: 20,
-          paddingRight: 20,
+          paddingLeft: padHScaled,
+          paddingRight: padHScaled,
           boxSizing: 'border-box',
           justifyContent: (state.buttonCount ?? 1) === 2 ? 'space-between' : 'center',
         }
@@ -775,39 +826,66 @@ export default function Preview({
       presetId={previewDevicePresetId}
       screenW={previewScreenW}
       screenH={previewScreenH}
+      screenClassName={
+        isBottomSlideUp
+          ? (state.bottomSlideAppMode === 'dark' ? 'bg-black' : 'bg-[#f2f2f7]')
+          : undefined
+      }
     >
       {isBottomSlideUp ? (
         <BottomSlideUpPreview state={state} tr={tr} />
       ) : (
       <>
-        {/* 전체 화면 딤(오버레이 불투명도). 베이스는 흰 스크린 → 투명 PNG 대비 확인 */}
+        {/* 전체 화면 딤 — 탭 시 닫기(onBackdropDismiss). 스테이지는 pointer-events-none으로 딤에 통과 */}
         <div
-          className="pointer-events-none absolute inset-0 z-[5] rounded-[inherit] transition-colors"
+          className={`absolute inset-0 z-[5] rounded-[inherit] ${onBackdropDismiss ? 'pointer-events-auto cursor-pointer' : 'pointer-events-none'}`}
           style={overlayStyle}
-          aria-hidden
+          aria-hidden={!onBackdropDismiss}
+          onClick={onBackdropDismiss ? () => onBackdropDismiss() : undefined}
         />
       <div
-        className={`absolute inset-0 z-10 flex min-h-0 items-center justify-center overflow-x-hidden overflow-y-auto bg-transparent ${useStudioShellMargins ? 'py-3 px-[10%]' : 'p-3'} ${isSmvCarousel ? HIDE_SCROLLBAR_CLASS : ''}`}
+        className={`absolute inset-0 z-10 flex min-h-0 items-center justify-center overflow-x-hidden overflow-y-auto bg-transparent ${onBackdropDismiss ? 'pointer-events-none' : ''} py-3 ${isSmvCarousel ? HIDE_SCROLLBAR_CLASS : ''}`}
+        style={{ paddingLeft: IAM_STAGE_PAD_PX, paddingRight: IAM_STAGE_PAD_PX }}
       >
+        {useSimpleIconIamColumn && !isTabletPreviewPreset ? (
+          <style>{`
+            @container (min-width: 600px) and (max-width: 1024px) {
+              .preview-simple-icon-col { width: 50% !important; }
+            }
+          `}</style>
+        ) : null}
         <div
-          className="relative z-20 flex w-full max-h-full min-h-0 max-w-full flex-col items-center flex-shrink-0 self-center"
-          style={
-            useStudioShellMargins
-              ? { marginLeft: 0, marginRight: 0 }
-              : { marginLeft: POPUP_SIDE_MARGIN, marginRight: POPUP_SIDE_MARGIN }
-          }
+          className={`relative z-20 flex w-full max-h-full min-h-0 max-w-full flex-col items-center flex-shrink-0 self-center ${onBackdropDismiss ? 'pointer-events-auto' : ''}`}
+          style={{ marginLeft: 0, marginRight: 0 }}
         >
           <div
+            className={useSimpleIconIamColumn ? 'preview-simple-icon-col' : undefined}
             style={
-              useStudioShellMargins
-                ? {
-                    width: '100%',
-                    maxWidth: studioShellColumnMaxW,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'stretch',
-                  }
-                : { display: 'contents' }
+              useSimpleIconIamColumn
+                ? isTabletPreviewPreset
+                  ? {
+                      width: '100%',
+                      maxWidth: SMV_MODAL_W,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'stretch',
+                    }
+                  : {
+                      width: '80%',
+                      maxWidth: '100%',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'stretch',
+                    }
+                : useCarouselIamColumn
+                  ? {
+                      width: '100%',
+                      maxWidth: studioShellColumnMaxW,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'stretch',
+                    }
+                  : { display: 'contents' }
             }
           >
           <div
@@ -816,16 +894,16 @@ export default function Preview({
               isSmvCarousel || isSimpleIconModal
                 ? {
                     ...smvContainerStyle,
-                    ...(useSmvStudioMargins ? { width: '100%' } : {}),
+                    ...(useIamShellInnerFullWidth ? { width: '100%' } : {}),
                   }
                 : {
                     ...popupContainerStyle,
                     ...(isChoiceButtonModal
                       ? {
                           width: '100%',
-                          maxWidth: cfg.width,
+                          maxWidth: pvCfg.width,
                           height: 'auto',
-                          aspectRatio: `${cfg.width} / ${cfg.height}`,
+                          aspectRatio: `${pvCfg.width} / ${pvCfg.height}`,
                         }
                       : {}),
                   }
@@ -971,8 +1049,8 @@ export default function Preview({
                 <div style={{ height: SMV_GAP_SLIDE_TEXT, flexShrink: 0 }} aria-hidden />
                 <div
                   style={{
-                    width: useSmvStudioMargins ? '100%' : SMV_COLUMN_W,
-                    maxWidth: useSmvStudioMargins ? SMV_COLUMN_W : undefined,
+                    width: useIamShellInnerFullWidth ? '100%' : SMV_COLUMN_W,
+                    maxWidth: useIamShellInnerFullWidth ? SMV_COLUMN_W : undefined,
                     flexShrink: 0,
                     boxSizing: 'border-box',
                   }}
@@ -992,8 +1070,8 @@ export default function Preview({
                 <div style={{ height: SMV_TITLE_DESC_GAP, flexShrink: 0 }} aria-hidden />
                 <div
                   style={{
-                    width: useSmvStudioMargins ? '100%' : SMV_COLUMN_W,
-                    maxWidth: useSmvStudioMargins ? SMV_COLUMN_W : undefined,
+                    width: useIamShellInnerFullWidth ? '100%' : SMV_COLUMN_W,
+                    maxWidth: useIamShellInnerFullWidth ? SMV_COLUMN_W : undefined,
                     flexShrink: 0,
                     boxSizing: 'border-box',
                   }}
@@ -1018,8 +1096,9 @@ export default function Preview({
                     tryPreviewNavigateToDeeplink(state.button1?.deeplink)
                   }
                   style={{
-                    width: useSmvStudioMargins ? '100%' : SMV_BTN_W,
-                    maxWidth: useSmvStudioMargins ? SMV_BTN_W : undefined,
+                    ...NO_TOUCH_FEEDBACK_STYLE,
+                    width: useIamShellInnerFullWidth ? '100%' : SMV_BTN_W,
+                    maxWidth: useIamShellInnerFullWidth ? SMV_BTN_W : undefined,
                     height: SMV_BTN_H,
                     borderRadius: SMV_BTN_RADIUS,
                     backgroundColor: SMV_BTN_BG,
@@ -1090,8 +1169,8 @@ export default function Preview({
                                 : ''
                             }`}
                             style={{
-                              width: cfg.width,
-                              height: cfg.height,
+                              width: pvCfg.width,
+                              height: pvCfg.height,
                               scrollSnapAlign: 'center',
                               backgroundColor: item.src ? 'transparent' : POPUP_EMPTY_BACKGROUND,
                             }}
@@ -1123,13 +1202,47 @@ export default function Preview({
                     className="absolute inset-0 z-0"
                     style={{
                       backgroundColor: hasImage ? 'transparent' : POPUP_EMPTY_BACKGROUND,
+                      ...(isChoiceButtonModal &&
+                      String(state.button1?.deeplink ?? '').trim()
+                        ? { ...NO_TOUCH_FEEDBACK_STYLE, cursor: 'default' }
+                        : {}),
                     }}
+                    role={
+                      isChoiceButtonModal &&
+                      String(state.button1?.deeplink ?? '').trim()
+                        ? 'link'
+                        : undefined
+                    }
+                    tabIndex={
+                      isChoiceButtonModal &&
+                      String(state.button1?.deeplink ?? '').trim()
+                        ? 0
+                        : undefined
+                    }
+                    onClick={
+                      isChoiceButtonModal &&
+                      String(state.button1?.deeplink ?? '').trim()
+                        ? () =>
+                            tryPreviewNavigateToDeeplink(state.button1?.deeplink)
+                        : undefined
+                    }
+                    onKeyDown={
+                      isChoiceButtonModal &&
+                      String(state.button1?.deeplink ?? '').trim()
+                        ? (ev) => {
+                            if (ev.key === 'Enter' || ev.key === ' ') {
+                              ev.preventDefault()
+                              tryPreviewNavigateToDeeplink(state.button1?.deeplink)
+                            }
+                          }
+                        : undefined
+                    }
                   >
                     {hasImage ? (
                       <img
                         src={displayImageSrc}
                         alt="Popup background"
-                        className="absolute inset-0 h-full w-full object-cover"
+                        className="pointer-events-none absolute inset-0 h-full w-full object-cover"
                         style={{ display: 'block' }}
                       />
                     ) : (
@@ -1153,15 +1266,16 @@ export default function Preview({
                             tryPreviewNavigateToDeeplink(state.button1?.deeplink)
                           }
                           style={{
-                            width: DUAL_BUTTON_WIDTH,
-                            height: BUTTON_HEIGHT,
-                            borderRadius: BUTTON_RADIUS,
+                            ...NO_TOUCH_FEEDBACK_STYLE,
+                            width: dualW,
+                            height: btnH,
+                            borderRadius: choiceBtnRadius,
                             backgroundColor: state.button1.bgColor,
                             color: btn1PreviewFg,
-                            fontSize: BUTTON_FONT_SIZE,
+                            fontSize: btnFs,
                             boxSizing: 'border-box',
-                            paddingLeft: BUTTON_HORIZONTAL_PADDING,
-                            paddingRight: BUTTON_HORIZONTAL_PADDING,
+                            paddingLeft: choicePadH,
+                            paddingRight: choicePadH,
                           }}
                         >
                           <span style={BUTTON_LINE_CLAMP_STYLE}>{state.button1.label}</span>
@@ -1173,15 +1287,16 @@ export default function Preview({
                             tryPreviewNavigateToDeeplink(state.button2?.deeplink)
                           }
                           style={{
-                            width: DUAL_BUTTON_WIDTH,
-                            height: BUTTON_HEIGHT,
-                            borderRadius: BUTTON_RADIUS,
+                            ...NO_TOUCH_FEEDBACK_STYLE,
+                            width: dualW,
+                            height: btnH,
+                            borderRadius: choiceBtnRadius,
                             backgroundColor: state.button2.bgColor,
                             color: btn2PreviewFg,
-                            fontSize: BUTTON_FONT_SIZE,
+                            fontSize: btnFs,
                             boxSizing: 'border-box',
-                            paddingLeft: BUTTON_HORIZONTAL_PADDING,
-                            paddingRight: BUTTON_HORIZONTAL_PADDING,
+                            paddingLeft: choicePadH,
+                            paddingRight: choicePadH,
                           }}
                         >
                           <span style={BUTTON_LINE_CLAMP_STYLE}>{state.button2.label}</span>
@@ -1195,15 +1310,16 @@ export default function Preview({
                           tryPreviewNavigateToDeeplink(state.button1?.deeplink)
                         }
                         style={{
-                          width: SINGLE_BUTTON_WIDTH,
-                          height: BUTTON_HEIGHT,
-                          borderRadius: BUTTON_RADIUS,
+                          ...NO_TOUCH_FEEDBACK_STYLE,
+                          width: singleW,
+                          height: btnH,
+                          borderRadius: choiceBtnRadius,
                           backgroundColor: state.button1.bgColor,
                           color: btn1PreviewFg,
-                          fontSize: BUTTON_FONT_SIZE,
+                          fontSize: btnFs,
                           boxSizing: 'border-box',
-                          paddingLeft: BUTTON_HORIZONTAL_PADDING,
-                          paddingRight: BUTTON_HORIZONTAL_PADDING,
+                          paddingLeft: choicePadH,
+                          paddingRight: choicePadH,
                         }}
                       >
                         <span style={BUTTON_LINE_CLAMP_STYLE}>{state.button1.label}</span>
@@ -1217,7 +1333,7 @@ export default function Preview({
           <footer
             className="flex w-full flex-shrink-0 items-center justify-between"
             style={{
-              width: useStudioShellMargins ? '100%' : frameDims.width,
+              width: footerContentWidth,
               minHeight: 20,
               boxSizing: 'border-box',
               backgroundColor: 'transparent',
@@ -1226,8 +1342,9 @@ export default function Preview({
           >
             <button
               type="button"
-              className="cursor-pointer text-left"
+              className="text-left"
               style={{
+                ...NO_TOUCH_FEEDBACK_STYLE,
                 color: FOOTER_TEXT_COLOR,
                 fontSize: FOOTER_FONT_SIZE,
                 background: 'transparent',
@@ -1240,8 +1357,9 @@ export default function Preview({
             </button>
             <button
               type="button"
-              className="cursor-pointer flex items-center justify-center"
+              className="flex items-center justify-center"
               style={{
+                ...NO_TOUCH_FEEDBACK_STYLE,
                 color: FOOTER_TEXT_COLOR,
                 fontSize: FOOTER_FONT_SIZE,
                 background: 'transparent',

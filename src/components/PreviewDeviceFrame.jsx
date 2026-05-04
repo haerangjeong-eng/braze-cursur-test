@@ -60,6 +60,7 @@ function getFrameMetrics(presetId) {
  *   screenW: number,
  *   screenH: number,
  *   children: import('react').ReactNode,
+ *   screenClassName?: string,
  * }} props
  */
 const SE_CLASSIC_EARPIECE_H = 6
@@ -70,6 +71,8 @@ export default function PreviewDeviceFrame({
   screenW,
   screenH,
   children,
+  /** 미리보기 스크린 영역 — Bottom Slide Up 등에서 기본 흰색 대신 지정 */
+  screenClassName,
 }) {
   const m = getFrameMetrics(presetId)
   const outerW = screenW + m.padX * 2
@@ -147,7 +150,7 @@ export default function PreviewDeviceFrame({
       ) : null}
 
       <div
-        className="absolute overflow-hidden bg-white"
+        className={`absolute overflow-hidden ${screenClassName ?? 'bg-white'}`}
         style={{
           left: m.padX,
           top: m.padTop,

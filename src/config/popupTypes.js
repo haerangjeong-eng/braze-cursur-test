@@ -6,6 +6,9 @@ import { getSimpleIconPresetSrc } from './simpleIcon'
 
 export const POPUP_BASE_WIDTH = 352
 
+/** IAM 스테이지 좌우 패딩(px) — 실무 가이드(그 외 팝업·캐러셀·Simple Icon 공통 스테이지) */
+export const IAM_STAGE_PAD_PX = 18
+
 export const POPUP_CONTAINER_BORDER_RADIUS = 14
 
 /** Auto Square Slide (Slide_Modal_1:1) — 슬롯 최소·최대 장수 */
