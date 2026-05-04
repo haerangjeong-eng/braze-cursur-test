@@ -17,8 +17,21 @@ export function getPublicAssetBaseUrl() {
     }
     if (typeof window === 'undefined' || !window.location?.origin) return ''
     const origin = String(window.location.origin).replace(/\/$/, '')
-    let base = import.meta.env.BASE_URL || '/'
-    if (!base.startsWith('/')) base = '/' + base
+    const baseEnv = import.meta.env.BASE_URL || '/'
+    // Vite `base: './'` → BASE_URL `./` — 앱이 서브경로에 있으면 origin+절대경로로 합치면 안 됨
+    if (
+      baseEnv === './' ||
+      (baseEnv.startsWith('.') && !baseEnv.startsWith('/'))
+    ) {
+      try {
+        const u = new URL(baseEnv, window.location.href)
+        return `${u.origin}${u.pathname}`.replace(/\/$/, '')
+      } catch {
+        return origin
+      }
+    }
+    let base = baseEnv
+    if (!base.startsWith('/')) base = `/${base}`
     base = base.replace(/\/+$/, '')
     return origin + base
   } catch {
