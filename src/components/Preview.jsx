@@ -54,6 +54,7 @@ import {
   normalizeSlideVerticalImages,
 } from '../utils/slideVertical'
 import { PREVIEW_DEVICE_PRESET_DEFAULT_ID } from '../config/previewDevicePresets'
+import { tryPreviewNavigateToDeeplink } from '../utils/previewNavigate'
 
 const PREVIEW_SMV_CAROUSEL_VIEW_CLASS = 'preview-smv-carousel-view'
 const PREVIEW_SMV_CAROUSEL_INSTANT_CLASS = 'preview-smv-carousel-view--instant'
@@ -291,6 +292,8 @@ export default function Preview({
   const slideModalScrollRef = useRef(null)
   const suppressSlideModalScrollSyncRef = useRef(false)
   const slideModalDragRef = useRef(null)
+  /** 가로 드래그와 탭(링크) 구분용 — 클릭 시점에 maxDx 참조 */
+  const slideModalGestureRef = useRef({ maxDx: 0 })
   const slideModalFirstLayoutRef = useRef(true)
   const slideModalPrevLogicalIdxRef = useRef(state.slidePreviewIndex ?? 0)
   const slideModalScrollSettleTimer = useRef(null)
@@ -655,6 +658,7 @@ export default function Preview({
     if (e.pointerType === 'mouse' && e.button !== 0) return
     const shell = slideModalScrollRef.current
     if (!shell) return
+    slideModalGestureRef.current = { maxDx: 0 }
     slideModalDragRef.current = { startX: e.clientX, scrollLeft: shell.scrollLeft }
     setSlideModalDragging(true)
     e.currentTarget.setPointerCapture?.(e.pointerId)
@@ -665,6 +669,15 @@ export default function Preview({
     const shell = slideModalScrollRef.current
     if (!d || !shell) return
     shell.scrollLeft = d.scrollLeft - (e.clientX - d.startX)
+    slideModalGestureRef.current.maxDx = Math.max(
+      slideModalGestureRef.current.maxDx,
+      Math.abs(e.clientX - d.startX)
+    )
+  }
+
+  const onSlideModalSlideAreaClick = () => {
+    if ((slideModalGestureRef.current?.maxDx ?? 0) > 12) return
+    tryPreviewNavigateToDeeplink(state.slideModal11Deeplink)
   }
 
   const onSlideModalPointerUp = (e) => {
@@ -1001,6 +1014,9 @@ export default function Preview({
                 <button
                   type="button"
                   className="flex items-center justify-center font-medium flex-shrink-0"
+                  onClick={() =>
+                    tryPreviewNavigateToDeeplink(state.button1?.deeplink)
+                  }
                   style={{
                     width: useSmvStudioMargins ? '100%' : SMV_BTN_W,
                     maxWidth: useSmvStudioMargins ? SMV_BTN_W : undefined,
@@ -1047,7 +1063,32 @@ export default function Preview({
                         {slideModalTrackSlides.map((item, i) => (
                           <div
                             key={item.key}
-                            className="flex-shrink-0 overflow-hidden"
+                            role={
+                              String(state.slideModal11Deeplink ?? '').trim()
+                                ? 'link'
+                                : undefined
+                            }
+                            tabIndex={
+                              String(state.slideModal11Deeplink ?? '').trim()
+                                ? 0
+                                : undefined
+                            }
+                            onClick={onSlideModalSlideAreaClick}
+                            onKeyDown={
+                              String(state.slideModal11Deeplink ?? '').trim()
+                                ? (ev) => {
+                                    if (ev.key === 'Enter' || ev.key === ' ') {
+                                      ev.preventDefault()
+                                      onSlideModalSlideAreaClick()
+                                    }
+                                  }
+                                : undefined
+                            }
+                            className={`flex-shrink-0 overflow-hidden${
+                              String(state.slideModal11Deeplink ?? '').trim()
+                                ? ' cursor-pointer'
+                                : ''
+                            }`}
                             style={{
                               width: cfg.width,
                               height: cfg.height,
@@ -1108,6 +1149,9 @@ export default function Preview({
                         <button
                           type="button"
                           className="flex items-center justify-center font-medium shrink-0"
+                          onClick={() =>
+                            tryPreviewNavigateToDeeplink(state.button1?.deeplink)
+                          }
                           style={{
                             width: DUAL_BUTTON_WIDTH,
                             height: BUTTON_HEIGHT,
@@ -1125,6 +1169,9 @@ export default function Preview({
                         <button
                           type="button"
                           className="flex items-center justify-center font-medium shrink-0"
+                          onClick={() =>
+                            tryPreviewNavigateToDeeplink(state.button2?.deeplink)
+                          }
                           style={{
                             width: DUAL_BUTTON_WIDTH,
                             height: BUTTON_HEIGHT,
@@ -1144,6 +1191,9 @@ export default function Preview({
                       <button
                         type="button"
                         className="flex items-center justify-center font-medium shrink-0"
+                        onClick={() =>
+                          tryPreviewNavigateToDeeplink(state.button1?.deeplink)
+                        }
                         style={{
                           width: SINGLE_BUTTON_WIDTH,
                           height: BUTTON_HEIGHT,
@@ -1165,12 +1215,13 @@ export default function Preview({
             )}
           </div>
           <footer
-            className="mt-2 flex w-full flex-shrink-0 items-center justify-between"
+            className="flex w-full flex-shrink-0 items-center justify-between"
             style={{
               width: useStudioShellMargins ? '100%' : frameDims.width,
               minHeight: 20,
               boxSizing: 'border-box',
               backgroundColor: 'transparent',
+              marginTop: 10,
             }}
           >
             <button
@@ -1182,6 +1233,7 @@ export default function Preview({
                 background: 'transparent',
                 border: 'none',
                 padding: 0,
+                paddingLeft: 4,
               }}
             >
               {tr.dontShowAgain || "Don't show again"}

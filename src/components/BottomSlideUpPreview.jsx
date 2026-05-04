@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { resolvePublicAssetUrl } from '../utils/assetUrl'
+import { tryPreviewNavigateToDeeplink } from '../utils/previewNavigate'
 import {
   BOTTOM_SLIDE_UP_BAR_HEIGHT,
   BOTTOM_SLIDE_UP_BOTTOM,
@@ -58,6 +59,7 @@ export default function BottomSlideUpPreview({ state, tr }) {
   const exitDoneRef = useRef(false)
 
   const barSrc = resolvePublicAssetUrl(getBottomSlideUpThumbSrc(state))
+  const landing = String(state.bottomSlideUpDeeplink ?? '').trim()
   const imgOk = Boolean(barSrc)
   const isIconType = state.popupType === POPUP_TYPE_IDS.BOTTOM_SLIDE_UP_ICON
   const thumbPx = isIconType
@@ -147,7 +149,7 @@ export default function BottomSlideUpPreview({ state, tr }) {
           onAnimationEnd={handleAnimationEnd}
         >
           <div
-            className="flex w-full flex-row items-center box-border"
+            className={`flex w-full flex-row items-center box-border${landing ? ' cursor-pointer' : ''}`}
             style={{
               maxWidth: BOTTOM_SLIDE_UP_CONTENT_MAX_W,
               height: BOTTOM_SLIDE_UP_BAR_HEIGHT,
@@ -157,6 +159,19 @@ export default function BottomSlideUpPreview({ state, tr }) {
               backgroundColor: barBg,
               gap: BOTTOM_SLIDE_UP_GAP,
             }}
+            onClick={() => tryPreviewNavigateToDeeplink(state.bottomSlideUpDeeplink)}
+            role={landing ? 'link' : undefined}
+            tabIndex={landing ? 0 : undefined}
+            onKeyDown={
+              landing
+                ? (e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      tryPreviewNavigateToDeeplink(state.bottomSlideUpDeeplink)
+                    }
+                  }
+                : undefined
+            }
           >
             <div
               className={`flex-shrink-0 overflow-hidden ${isIconType ? 'flex items-center justify-center' : ''}`}
@@ -222,7 +237,10 @@ export default function BottomSlideUpPreview({ state, tr }) {
                 backgroundColor: closeBtnBg,
               }}
               aria-label={tr.close || 'Close'}
-              onClick={() => setExiting(true)}
+              onClick={(e) => {
+                e.stopPropagation()
+                setExiting(true)
+              }}
             >
               <XMark color={closeIconColor} size={16} />
             </button>

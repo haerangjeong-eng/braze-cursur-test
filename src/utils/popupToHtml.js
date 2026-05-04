@@ -80,7 +80,7 @@ function exportOverlayRgba(state) {
 }
 
 function exportFooterRow(popupW, dontShowAgainEscaped, closeTextEscaped) {
-  const footStyle = `display:flex;align-items:center;justify-content:space-between;width:100%;max-width:${popupW}px;min-height:20px;padding:0;box-sizing:border-box;margin-top:12px;background:transparent;`
+  const footStyle = `display:flex;align-items:center;justify-content:space-between;width:100%;max-width:${popupW}px;min-height:20px;padding:0;box-sizing:border-box;margin-top:10px;background:transparent;`
   return `<footer style="${footStyle}">
     <button type="button" onclick="brazeDismiss()" style="color:#fff;font-size:${FOOTER_FONT_SIZE}px;background:transparent;border:none;padding:0;cursor:pointer;">${dontShowAgainEscaped}</button>
     <button type="button" onclick="brazeDismiss()" style="color:#fff;font-size:${FOOTER_FONT_SIZE}px;background:transparent;border:none;padding:0;cursor:pointer;display:flex;align-items:center;gap:4px;">${closeTextEscaped} ${CLOSE_ICON_SVG}</button>
@@ -247,6 +247,14 @@ function escapeHtml(str) {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
+}
+
+/** 비어 있지 않은 경우에만 `onclick`으로 `window.location` 할당 (JSON으로 이스케이프) */
+function buttonNavigateOnclickAttr(url) {
+  const u = String(url ?? '').trim()
+  if (!u) return ''
+  const json = JSON.stringify(u)
+  return ` onclick="(function(){var u=${json};if(u)try{window.location.href=u;}catch(e){}})()"`
 }
 
 const CLOSE_ICON_SVG =
@@ -419,7 +427,7 @@ ${exportIamViewportShell(
       <div style="width:100%;max-width:${SMV_COLUMN_W}px;flex-shrink:0;box-sizing:border-box;"><p style="${titleBlockStyle}">${title}</p></div>
       ${descSectionHtml}
       <div style="height:${SMV_GAP_TEXT_BTN}px;flex-shrink:0;"></div>
-      <button type="button" style="width:100%;max-width:${SMV_BTN_W}px;height:${SMV_BTN_H}px;border-radius:${SMV_BTN_RADIUS}px;background:${SMV_BTN_BG};color:#ffffff;font-size:15px;font-weight:500;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;box-sizing:border-box;flex-shrink:0;">${btnLabel}</button>
+      <button type="button"${buttonNavigateOnclickAttr(state.button1?.deeplink)} style="width:100%;max-width:${SMV_BTN_W}px;height:${SMV_BTN_H}px;border-radius:${SMV_BTN_RADIUS}px;background:${SMV_BTN_BG};color:#ffffff;font-size:15px;font-weight:500;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;box-sizing:border-box;flex-shrink:0;">${btnLabel}</button>
     </div>
   </div>
   ${exportFooterRow(popupW, dontShowAgain, closeText)}
@@ -455,6 +463,9 @@ function getSlideModal11Html(state, t, cfg) {
   const popupW = cfg.width
   const popupH = cfg.height
   const r = POPUP_CONTAINER_BORDER_RADIUS
+  const landing11 = String(state.slideModal11Deeplink ?? '').trim()
+  const imgNav = buttonNavigateOnclickAttr(state.slideModal11Deeplink)
+  const imgCursor = landing11 ? 'cursor:pointer;' : ''
   const images = normalizeSlideModal11Images(state.slideImages).filter(Boolean)
   const n = images.length
   const slideIdx = Math.min(
@@ -477,7 +488,7 @@ function getSlideModal11Html(state, t, cfg) {
   if (n <= 1) {
     const src = images[0] != null ? escapeHtml(images[0]) : ''
     const singleImg = src
-      ? `<img src="${src}" alt="" draggable="false" style="width:100%;height:100%;object-fit:cover;display:block;"/>`
+      ? `<img src="${src}" alt="" draggable="false" style="width:100%;height:100%;object-fit:cover;display:block;${imgCursor}"${imgNav}/>`
       : `<div style="width:100%;height:100%;background:${POPUP_EMPTY_BACKGROUND};"></div>`
     const singleCss = `<style>.sm11-panel-single{position:relative;width:${popupW}px;height:${popupH}px;border-radius:${r}px;overflow:hidden;box-sizing:border-box;}</style>`
     const body = `<!-- Popup ${popupW}x${popupH} (${cfg.id}, auto_square export, single) -->
@@ -502,7 +513,7 @@ ${exportIamViewportShell(
   const itemsHtmlSlick = images
     .map((src) => {
       const esc = escapeHtml(src)
-      return `<div><img src="${esc}" alt="" draggable="false"/></div>`
+      return `<div><img src="${esc}" alt="" draggable="false" style="${imgCursor}"${imgNav}/></div>`
     })
     .join('')
 
@@ -664,7 +675,7 @@ ${exportIamViewportShell(
       <div style="width:100%;max-width:${SMV_COLUMN_W}px;flex-shrink:0;box-sizing:border-box;"><p style="${titleBlockStyle}">${title}</p></div>
       ${descSectionHtml}
       <div style="height:${SMV_GAP_TEXT_BTN}px;flex-shrink:0;"></div>
-      <button type="button" style="width:100%;max-width:${SMV_BTN_W}px;height:${SMV_BTN_H}px;border-radius:${SMV_BTN_RADIUS}px;background:${SMV_BTN_BG};color:#ffffff;font-size:15px;font-weight:500;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;box-sizing:border-box;flex-shrink:0;">${btnLabel}</button>
+      <button type="button"${buttonNavigateOnclickAttr(state.button1?.deeplink)} style="width:100%;max-width:${SMV_BTN_W}px;height:${SMV_BTN_H}px;border-radius:${SMV_BTN_RADIUS}px;background:${SMV_BTN_BG};color:#ffffff;font-size:15px;font-weight:500;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;box-sizing:border-box;flex-shrink:0;">${btnLabel}</button>
     </div>
   </div>
   ${exportFooterRow(popupW, dontShowAgain, closeText)}
@@ -696,6 +707,9 @@ function getBottomSlideUpHtml(state, t) {
   const closeBorder = 'none'
 
   const msg = escapeHtml(state.bottomSlideUpText ?? '')
+  const landing = String(state.bottomSlideUpDeeplink ?? '').trim()
+  const barPointer = landing ? 'cursor:pointer;' : ''
+  const barOnclick = buttonNavigateOnclickAttr(state.bottomSlideUpDeeplink)
   const thumbSrc = getBottomSlideUpThumbSrc(state)
   const img = escapeHtml(resolveExportAssetUrl(state, thumbSrc ?? ''))
   const thumbPx = isIconType
@@ -741,14 +755,14 @@ ${exportIamViewportShell(
     `  <div style="position:relative;width:100%;box-sizing:border-box;">
   <div style="position:relative;width:100%;max-width:${W}px;min-height:100vh;margin:0 auto;overflow:hidden;font-family:${SMV_TEXT_FONT};box-sizing:border-box;background:${shellBg};">
   <div data-bsu-slide>
-    <div data-bsu-root style="width:100%;max-width:${BOTTOM_SLIDE_UP_CONTENT_MAX_W}px;height:${BOTTOM_SLIDE_UP_BAR_HEIGHT}px;display:flex;flex-direction:row;align-items:center;box-sizing:border-box;padding-left:${BOTTOM_SLIDE_UP_PAD_X}px;padding-right:${BOTTOM_SLIDE_UP_PAD_X}px;gap:${BOTTOM_SLIDE_UP_GAP}px;border-radius:${BOTTOM_SLIDE_UP_RADIUS}px;background:${barBg};">
+    <div data-bsu-root style="width:100%;max-width:${BOTTOM_SLIDE_UP_CONTENT_MAX_W}px;height:${BOTTOM_SLIDE_UP_BAR_HEIGHT}px;display:flex;flex-direction:row;align-items:center;box-sizing:border-box;padding-left:${BOTTOM_SLIDE_UP_PAD_X}px;padding-right:${BOTTOM_SLIDE_UP_PAD_X}px;gap:${BOTTOM_SLIDE_UP_GAP}px;border-radius:${BOTTOM_SLIDE_UP_RADIUS}px;background:${barBg};${barPointer}"${barOnclick}>
     <div style="${thumbBoxStyle}">
       <img src="${img}" alt="" style="${thumbImgStyle}">
     </div>
     <div style="flex:1;min-width:0;display:flex;align-items:center;">
       <p style="margin:0;width:100%;font-size:13px;line-height:18px;font-weight:500;color:${textColor};white-space:pre-wrap;word-break:break-word;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;">${msg}</p>
     </div>
-    <button type="button" onclick="brazeDismiss()" aria-label="${escapeHtml(t.close || 'Close')}" style="flex-shrink:0;width:${BOTTOM_SLIDE_UP_CLOSE_PX}px;height:${BOTTOM_SLIDE_UP_CLOSE_PX}px;border-radius:50%;border:${closeBorder};padding:0;cursor:pointer;background:${closeBg};display:flex;align-items:center;justify-content:center;color:${closeStroke};">
+    <button type="button" onclick="if(event&&event.stopPropagation)event.stopPropagation();brazeDismiss()" aria-label="${escapeHtml(t.close || 'Close')}" style="flex-shrink:0;width:${BOTTOM_SLIDE_UP_CLOSE_PX}px;height:${BOTTOM_SLIDE_UP_CLOSE_PX}px;border-radius:50%;border:${closeBorder};padding:0;cursor:pointer;background:${closeBg};display:flex;align-items:center;justify-content:center;color:${closeStroke};">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
     </button>
   </div>
@@ -830,13 +844,15 @@ export function getPopupHtml(state, t = {}) {
   const btnLabel = (label) =>
     `<span style="${BUTTON_TEXT_CLAMP}">${label}</span>`
 
+  const btn1Nav = buttonNavigateOnclickAttr(state.button1?.deeplink)
+  const btn2Nav = buttonNavigateOnclickAttr(state.button2?.deeplink)
   const buttonsHtml = isTwo
     ? `
-    <button type="button" style="flex:1 1 0;min-width:0;max-width:${DUAL_BUTTON_WIDTH}px;height:${BUTTON_HEIGHT}px;border-radius:${BUTTON_RADIUS}px;background-color:${btn1Bg};color:${btn1Fg};font-size:15px;font-weight:500;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;${btnPad}">${btnLabel(btn1Label)}</button>
-    <button type="button" style="flex:1 1 0;min-width:0;max-width:${DUAL_BUTTON_WIDTH}px;height:${BUTTON_HEIGHT}px;border-radius:${BUTTON_RADIUS}px;background-color:${btn2Bg};color:${btn2Fg};font-size:15px;font-weight:500;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;${btnPad}">${btnLabel(btn2Label)}</button>
+    <button type="button"${btn1Nav} style="flex:1 1 0;min-width:0;max-width:${DUAL_BUTTON_WIDTH}px;height:${BUTTON_HEIGHT}px;border-radius:${BUTTON_RADIUS}px;background-color:${btn1Bg};color:${btn1Fg};font-size:15px;font-weight:500;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;${btnPad}">${btnLabel(btn1Label)}</button>
+    <button type="button"${btn2Nav} style="flex:1 1 0;min-width:0;max-width:${DUAL_BUTTON_WIDTH}px;height:${BUTTON_HEIGHT}px;border-radius:${BUTTON_RADIUS}px;background-color:${btn2Bg};color:${btn2Fg};font-size:15px;font-weight:500;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;${btnPad}">${btnLabel(btn2Label)}</button>
   `
     : `
-    <button type="button" style="width:100%;max-width:${SINGLE_BUTTON_WIDTH}px;height:${BUTTON_HEIGHT}px;border-radius:${BUTTON_RADIUS}px;background-color:${btn1Bg};color:${btn1Fg};font-size:15px;font-weight:500;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;${btnPad}">${btnLabel(btn1Label)}</button>
+    <button type="button"${btn1Nav} style="width:100%;max-width:${SINGLE_BUTTON_WIDTH}px;height:${BUTTON_HEIGHT}px;border-radius:${BUTTON_RADIUS}px;background-color:${btn1Bg};color:${btn1Fg};font-size:15px;font-weight:500;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;${btnPad}">${btnLabel(btn1Label)}</button>
   `
 
   const gapStyle = isTwo ? `gap:${DUAL_BUTTON_GAP}px;` : ''

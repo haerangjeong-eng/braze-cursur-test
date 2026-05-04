@@ -97,6 +97,27 @@ const SMV_PANEL_INPUT_CLASS =
 /** 제목·설명 textarea — 위와 동일 박스·글자색 + 줄바꿈만 금지 */
 const SMV_TITLE_DESC_TEXTAREA_CLASS = `${SMV_PANEL_INPUT_CLASS} resize-none`
 
+const DEEPLINK_TEXTAREA_CLASS = `${SMV_PANEL_INPUT_CLASS} min-h-[3rem] resize-y text-xs font-mono leading-snug`
+
+function ButtonDeeplinkField({ id, value, onChange, tr }) {
+  const t = tr || {}
+  return (
+    <div className="flex flex-col gap-1.5 pt-1">
+      <Label htmlFor={id}>{t.buttonDeeplinkLabel ?? 'Link'}</Label>
+      <textarea
+        id={id}
+        value={value ?? ''}
+        onChange={(e) => onChange(e.target.value)}
+        rows={2}
+        placeholder={t.buttonDeeplinkPlaceholder ?? 'Enter the landing link'}
+        spellCheck={false}
+        autoComplete="off"
+        className={DEEPLINK_TEXTAREA_CLASS}
+      />
+    </div>
+  )
+}
+
 /** 이미지 URL 입력 — 바깥 셸 + 안쪽 텍스트형 적용 버튼 (h-11 통일) */
 const IMAGE_ROW_URL_SHELL_CLASS =
   'flex h-11 w-full min-w-0 items-stretch rounded-lg border border-zinc-700 bg-surface-800 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.03)] transition-[box-shadow,border-color] focus-within:border-brand focus-within:ring-2 focus-within:ring-brand/45'
@@ -1390,10 +1411,27 @@ export default function ControlPanel({
                     warnMessage={tr.buttonLabelOneLineWarn}
                   />
                 </div>
+                <div
+                  className={
+                    copyPanelIssues.smvDeeplink ? PANEL_SECTION_WARN_RING_CLASS : ''
+                  }
+                >
+                  <ButtonDeeplinkField
+                    id="smv-btn-deeplink"
+                    value={state.button1?.deeplink}
+                    onChange={(v) => updateButton('button1', 'deeplink', v)}
+                    tr={tr}
+                  />
+                </div>
               </div>
               {copyPanelIssues.smvButton ? (
                 <p className={PANEL_COPY_VALIDATE_MSG_CLASS}>
                   {tr.copyHtmlToastButtonRequired}
+                </p>
+              ) : null}
+              {copyPanelIssues.smvDeeplink ? (
+                <p className={PANEL_COPY_VALIDATE_MSG_CLASS}>
+                  {tr.copyHtmlToastDeeplinkRequired}
                 </p>
               ) : null}
             </div>
@@ -1531,10 +1569,29 @@ export default function ControlPanel({
                     warnMessage={tr.buttonLabelOneLineWarn}
                   />
                 </div>
+                <div
+                  className={
+                    copyPanelIssues.simpleIconDeeplink
+                      ? PANEL_SECTION_WARN_RING_CLASS
+                      : ''
+                  }
+                >
+                  <ButtonDeeplinkField
+                    id="simple-icon-btn-deeplink"
+                    value={state.button1?.deeplink}
+                    onChange={(v) => updateButton('button1', 'deeplink', v)}
+                    tr={tr}
+                  />
+                </div>
               </div>
               {copyPanelIssues.smvButton ? (
                 <p className={PANEL_COPY_VALIDATE_MSG_CLASS}>
                   {tr.copyHtmlToastButtonRequired}
+                </p>
+              ) : null}
+              {copyPanelIssues.simpleIconDeeplink ? (
+                <p className={PANEL_COPY_VALIDATE_MSG_CLASS}>
+                  {tr.copyHtmlToastDeeplinkRequired}
                 </p>
               ) : null}
             </div>
@@ -1674,6 +1731,25 @@ export default function ControlPanel({
             {copyPanelIssues.bottomSlideText ? (
               <p className={PANEL_COPY_VALIDATE_MSG_CLASS}>
                 {tr.copyHtmlToastBottomSlideTextRequired}
+              </p>
+            ) : null}
+            <div
+              className={
+                copyPanelIssues.bottomSlideDeeplink
+                  ? PANEL_SECTION_WARN_RING_CLASS
+                  : ''
+              }
+            >
+              <ButtonDeeplinkField
+                id="bsu-landing-link"
+                value={state.bottomSlideUpDeeplink}
+                onChange={(v) => update('bottomSlideUpDeeplink', v)}
+                tr={tr}
+              />
+            </div>
+            {copyPanelIssues.bottomSlideDeeplink ? (
+              <p className={PANEL_COPY_VALIDATE_MSG_CLASS}>
+                {tr.copyHtmlToastDeeplinkRequired}
               </p>
             ) : null}
           </Section>
@@ -1859,6 +1935,25 @@ export default function ControlPanel({
                     </button>
                   </div>
                 </div>
+                <div
+                  className={
+                    copyPanelIssues.slideModal11Deeplink
+                      ? PANEL_SECTION_WARN_RING_CLASS
+                      : ''
+                  }
+                >
+                  <ButtonDeeplinkField
+                    id="slide11-landing-link"
+                    value={state.slideModal11Deeplink}
+                    onChange={(v) => update('slideModal11Deeplink', v)}
+                    tr={tr}
+                  />
+                </div>
+                {copyPanelIssues.slideModal11Deeplink ? (
+                  <p className={PANEL_COPY_VALIDATE_MSG_CLASS}>
+                    {tr.copyHtmlToastDeeplinkRequired}
+                  </p>
+                ) : null}
               </>
             ) : (
               <div
@@ -2047,6 +2142,25 @@ export default function ControlPanel({
                         </p>
                       )}
                     </div>
+                    <div
+                      className={
+                        copyPanelIssues.choiceDeeplink1
+                          ? PANEL_SECTION_WARN_RING_CLASS
+                          : ''
+                      }
+                    >
+                      <ButtonDeeplinkField
+                        id="choice-btn1-deeplink"
+                        value={state.button1?.deeplink}
+                        onChange={(v) => updateButton('button1', 'deeplink', v)}
+                        tr={tr}
+                      />
+                    </div>
+                    {copyPanelIssues.choiceDeeplink1 ? (
+                      <p className={PANEL_COPY_VALIDATE_MSG_CLASS}>
+                        {tr.copyHtmlToastDeeplinkRequired}
+                      </p>
+                    ) : null}
                   </div>
                 </div>
 
@@ -2162,6 +2276,27 @@ export default function ControlPanel({
                           </p>
                         )}
                       </div>
+                      <div
+                        className={
+                          copyPanelIssues.choiceDeeplink2
+                            ? PANEL_SECTION_WARN_RING_CLASS
+                            : ''
+                        }
+                      >
+                        <ButtonDeeplinkField
+                          id="choice-btn2-deeplink"
+                          value={state.button2?.deeplink}
+                          onChange={(v) =>
+                            updateButton('button2', 'deeplink', v)
+                          }
+                          tr={tr}
+                        />
+                      </div>
+                      {copyPanelIssues.choiceDeeplink2 ? (
+                        <p className={PANEL_COPY_VALIDATE_MSG_CLASS}>
+                          {tr.copyHtmlToastDeeplinkRequired}
+                        </p>
+                      ) : null}
                     </div>
                   </div>
                 )}

@@ -32,7 +32,7 @@ export function formatCopyHtmlToastMessage(template, vars = {}) {
 }
 
 /**
- * @typedef {'min_images'|'upload_image'|'bottom_slide_text'|'title'|'button'|'title_and_button'} CopyHtmlFailReason
+ * @typedef {'min_images'|'upload_image'|'bottom_slide_text'|'title'|'button'|'title_and_button'|'deeplink'} CopyHtmlFailReason
  */
 
 /**
@@ -48,6 +48,10 @@ function getFirstCopyHtmlFailure(state) {
 
   if (isSlideModalAutoSquareType(pt) && !slideModal11HasAllImages(state.slideImages)) {
     return { reason: 'min_images', minImages: SLIDE_MODAL_11_MIN_IMAGES }
+  }
+
+  if (isSlideModalAutoSquareType(pt) && !hasTrim(state.slideModal11Deeplink)) {
+    return { reason: 'deeplink' }
   }
 
   if (isChoiceButtonModalType(pt) && !state.imageSource) {
@@ -70,6 +74,10 @@ function getFirstCopyHtmlFailure(state) {
     return { reason: 'bottom_slide_text' }
   }
 
+  if (isBottomSlideUpType(pt) && !hasTrim(state.bottomSlideUpDeeplink)) {
+    return { reason: 'deeplink' }
+  }
+
   const carouselOrSimpleIcon =
     isCarouselThumbPopupType(pt) || pt === POPUP_TYPE_IDS.SIMPLE_ICON_MODAL
 
@@ -79,10 +87,18 @@ function getFirstCopyHtmlFailure(state) {
     if (!titleOk && !btnOk) return { reason: 'title_and_button' }
     if (!titleOk) return { reason: 'title' }
     if (!btnOk) return { reason: 'button' }
+    if (!hasTrim(state.button1?.deeplink)) return { reason: 'deeplink' }
   }
 
   if (isChoiceButtonModalType(pt) && !choiceModalHasAllButtonLabels(state)) {
     return { reason: 'button' }
+  }
+
+  if (isChoiceButtonModalType(pt)) {
+    if (!hasTrim(state.button1?.deeplink)) return { reason: 'deeplink' }
+    if ((state.buttonCount ?? 1) >= 2 && !hasTrim(state.button2?.deeplink)) {
+      return { reason: 'deeplink' }
+    }
   }
 
   return null
@@ -107,12 +123,18 @@ export function getCopyHtmlPanelIssues(state) {
   const issues = {
     carouselMinImages: false,
     slide11MinImages: false,
+    slideModal11Deeplink: false,
     uploadImage: false,
     bottomSlideText: false,
     title: false,
     smvButton: false,
+    smvDeeplink: false,
+    simpleIconDeeplink: false,
+    bottomSlideDeeplink: false,
     choiceButton1: false,
     choiceButton2: false,
+    choiceDeeplink1: false,
+    choiceDeeplink2: false,
   }
 
   if (isCarouselThumbPopupType(pt) && !slideVerticalHasAllImages(state.slideVerticalImages)) {
@@ -121,6 +143,10 @@ export function getCopyHtmlPanelIssues(state) {
 
   if (isSlideModalAutoSquareType(pt) && !slideModal11HasAllImages(state.slideImages)) {
     issues.slide11MinImages = true
+  }
+
+  if (isSlideModalAutoSquareType(pt) && !hasTrim(state.slideModal11Deeplink)) {
+    issues.slideModal11Deeplink = true
   }
 
   if (isChoiceButtonModalType(pt) && !state.imageSource) {
@@ -143,12 +169,24 @@ export function getCopyHtmlPanelIssues(state) {
     issues.bottomSlideText = true
   }
 
+  if (isBottomSlideUpType(pt) && !hasTrim(state.bottomSlideUpDeeplink)) {
+    issues.bottomSlideDeeplink = true
+  }
+
   const carouselOrSimpleIcon =
     isCarouselThumbPopupType(pt) || pt === POPUP_TYPE_IDS.SIMPLE_ICON_MODAL
 
   if (carouselOrSimpleIcon) {
     if (!hasTrim(state.slideVerticalTitle)) issues.title = true
     if (!hasTrim(state.button1?.label)) issues.smvButton = true
+  }
+
+  if (isCarouselThumbPopupType(pt) && !hasTrim(state.button1?.deeplink)) {
+    issues.smvDeeplink = true
+  }
+
+  if (pt === POPUP_TYPE_IDS.SIMPLE_ICON_MODAL && !hasTrim(state.button1?.deeplink)) {
+    issues.simpleIconDeeplink = true
   }
 
   if (isChoiceButtonModalType(pt)) {
@@ -159,6 +197,13 @@ export function getCopyHtmlPanelIssues(state) {
     ) {
       issues.choiceButton2 = true
     }
+    if (!hasTrim(state.button1?.deeplink)) issues.choiceDeeplink1 = true
+    if (
+      (state.buttonCount ?? 1) >= 2 &&
+      !hasTrim(state.button2?.deeplink)
+    ) {
+      issues.choiceDeeplink2 = true
+    }
   }
 
   return issues
@@ -168,12 +213,18 @@ export function getCopyHtmlPanelIssues(state) {
 export const EMPTY_COPY_HTML_PANEL_ISSUES = {
   carouselMinImages: false,
   slide11MinImages: false,
+  slideModal11Deeplink: false,
   uploadImage: false,
   bottomSlideText: false,
   title: false,
   smvButton: false,
+  smvDeeplink: false,
+  simpleIconDeeplink: false,
+  bottomSlideDeeplink: false,
   choiceButton1: false,
   choiceButton2: false,
+  choiceDeeplink1: false,
+  choiceDeeplink2: false,
 }
 
 export function getCopyHtmlInvalidMessage(state, tr) {
@@ -196,6 +247,8 @@ export function getCopyHtmlInvalidMessage(state, tr) {
       return t.copyHtmlToastButtonRequired ?? ''
     case 'title_and_button':
       return t.copyHtmlToastTitleAndButtonRequired ?? ''
+    case 'deeplink':
+      return t.copyHtmlToastDeeplinkRequired ?? ''
     default:
       return ''
   }

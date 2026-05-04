@@ -75,17 +75,21 @@ const defaultState = {
     label: '확인',
     bgColor: CHOICE_BUTTON_MODAL_DEFAULT_BUTTON1_BG,
     textColor: '#ffffff',
+    deeplink: '',
   },
   button2: {
     label: '취소',
     bgColor: CHOICE_BUTTON_MODAL_DEFAULT_BUTTON2_BG,
     textColor: '#000000',
+    deeplink: '',
   },
   overlayOpacity: 70,
   cornerRadius: 14,
   slideImages: [],
   slideImagesSlotKeys: [newSmvSlotKey(), newSmvSlotKey()],
   slidePreviewIndex: 0,
+  /** Slide_Modal_1:1(Auto Square) 이미지 영역 탭 시 이동 URL */
+  slideModal11Deeplink: '',
   slideVerticalImages: [null, null, null],
   slideVerticalSlotKeys: [
     newSmvSlotKey(),
@@ -101,6 +105,8 @@ const defaultState = {
   /** Bottom Slide Up — Icon Type 좌측 프리셋 (Character Type은 imageSource) */
   bottomSlideUpIconPresetId: 'gift',
   bottomSlideUpText: DEFAULT_BOTTOM_SLIDE_UP_TEXT,
+  /** Bottom Slide Up 바 전체 탭 시 이동할 URL·스킴 */
+  bottomSlideUpDeeplink: '',
   /** light = 앱 라이트 모드 프리뷰(검정 바), dark = 앱 다크 모드 프리뷰(밝은 바) */
   bottomSlideAppMode: 'light',
 }
