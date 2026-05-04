@@ -227,10 +227,32 @@ export function isSlideModalAutoSquareType(popupType) {
   )
 }
 
-/** Bottom Slide Up — 390 스크린 기준 플로팅 바 */
-export const BOTTOM_SLIDE_UP_SCREEN_W = 390
+/**
+ * 빌더 미리보기 폰 목업 스크린 — iPhone 13·14 (일반 모델) 논리 해상도(pt).
+ * HTML 내보내기에는 넣지 않음(미리보기 전용).
+ */
+export const PREVIEW_PHONE_IPHONE_13_14_W = 390
+export const PREVIEW_PHONE_IPHONE_13_14_H = 844
+
+/** Bottom Slide Up — 스크린 가로(pt); 미리보기 iPhone 13·14와 동일 */
+export const BOTTOM_SLIDE_UP_SCREEN_W = PREVIEW_PHONE_IPHONE_13_14_W
+/** @deprecated BSU는 BOTTOM_SLIDE_UP_OUTER_PAD_H 사용(Studio: 슬라이드 래퍼 가로 패딩) */
 export const BOTTOM_SLIDE_UP_MARGIN_H = 16
+/** IAM Studio: 좁은 뷰포트에서 슬라이드 래퍼 가로 패딩 15px */
+export const BOTTOM_SLIDE_UP_OUTER_PAD_H = 15
+/** Studio `.content-wrapper` — 바 최대 폭 */
+export const BOTTOM_SLIDE_UP_CONTENT_MAX_W = 480
+/** Studio: (min-width: 599px)에서 슬라이드 래퍼 padding 0 */
+export const BOTTOM_SLIDE_UP_WIDE_MIN_W = 599
+/** IAM 키프레임 종료 bottom(px) — Android / 일반 WebView */
+export const BOTTOM_SLIDE_UP_BOTTOM_ANDROID = 63
+/** IAM 키프레임 종료 bottom(px) — iOS Safari/WebView */
 export const BOTTOM_SLIDE_UP_BOTTOM = 96
+/** IAM 애니메이션: 등장·퇴장 duration(s), easing */
+export const BOTTOM_SLIDE_UP_ANIM_DURATION_S = 0.2
+export const BOTTOM_SLIDE_UP_ANIM_EASING = 'ease-out'
+/** IAM: 키프레임 시작 bottom(px) */
+export const BOTTOM_SLIDE_UP_ANIM_FROM_BOTTOM_PX = -100
 export const BOTTOM_SLIDE_UP_BAR_HEIGHT = 82
 export const BOTTOM_SLIDE_UP_RADIUS = 6
 export const BOTTOM_SLIDE_UP_THUMB_PX = 50
@@ -249,9 +271,12 @@ export function getBottomSlideUpThumbPx(popupType) {
 
 export function getBottomSlideUpTextClampWidth(popupType) {
   const thumbPx = getBottomSlideUpThumbPx(popupType)
+  const barW = Math.min(
+    BOTTOM_SLIDE_UP_CONTENT_MAX_W,
+    BOTTOM_SLIDE_UP_SCREEN_W - BOTTOM_SLIDE_UP_OUTER_PAD_H * 2
+  )
   return (
-    BOTTOM_SLIDE_UP_SCREEN_W -
-    BOTTOM_SLIDE_UP_MARGIN_H * 2 -
+    barW -
     BOTTOM_SLIDE_UP_PAD_X * 2 -
     thumbPx -
     BOTTOM_SLIDE_UP_GAP * 2 -
@@ -327,7 +352,7 @@ export function getPopupTypeConfig(id) {
       return {
         id,
         width: BOTTOM_SLIDE_UP_SCREEN_W,
-        height: 844,
+        height: PREVIEW_PHONE_IPHONE_13_14_H,
         aspectRatio: 'custom',
         noButtons: true,
       }

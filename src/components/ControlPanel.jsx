@@ -172,9 +172,10 @@ function resolvePanelImageSizeGuide(tr, state) {
   const t = tr || {}
   const pt = state.popupType
   if (isChoiceButtonModalType(pt)) {
-    if (pt === POPUP_TYPE_IDS.SQUARE) return t.panelImageSizeGuideChoice11 ?? ''
-    if (pt === POPUP_TYPE_IDS.VERTICAL_3_4) return t.panelImageSizeGuideChoice34 ?? ''
-    return t.panelImageSizeGuideChoice35 ?? ''
+    if (pt === POPUP_TYPE_IDS.SQUARE) return t.panelImageSizeGuideAutoSquare11 ?? ''
+    if (pt === POPUP_TYPE_IDS.VERTICAL_3_4)
+      return t.panelImageSizeGuideAutoSquare34 ?? ''
+    return t.panelImageSizeGuideAutoSquare35 ?? ''
   }
   if (isSlideModalAutoSquareType(pt)) {
     if (pt === POPUP_TYPE_IDS.SLIDE_MODAL_1_1) return t.panelImageSizeGuideAutoSquare11 ?? ''

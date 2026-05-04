@@ -60,6 +60,10 @@ export const translations = {
     copyHtmlCompleteMessage: 'Code copied successfully.',
     copyHtmlClipboardFailed: 'Could not copy to clipboard. Please try again.',
     headerSubtitle: 'Options update the preview in real time.',
+    previewScreenSize: 'Preview screen',
+    previewDeviceIphone1314: 'iPhone 13 / 14',
+    previewDeviceIphoneSE: 'iPhone SE (3rd gen)',
+    previewDeviceIpad11: 'iPad Pro 11-inch',
     headerHelpAriaLabel: 'How to use',
     headerHelpTooltip:
       '1. Choose a popup template to use.\n2. Enter images, copy, buttons, and other content as you like.\n3. Click the “Copy HTML” button at the bottom left to copy the code.',
@@ -156,6 +160,10 @@ export const translations = {
       '1080×1080 px / JPG, PNG (use PNG for transparency).',
     panelImageSizeGuideAutoSquare45:
       '1080×1350 px / JPG, PNG (use PNG for transparency).',
+    panelImageSizeGuideAutoSquare34:
+      '1080×1440 px / JPG, PNG (use PNG for transparency).',
+    panelImageSizeGuideAutoSquare35:
+      '1080×1800 px / JPG, PNG (use PNG for transparency).',
     panelImageSizeGuideCarouselVertical: '480×623 px',
     panelImageSizeGuideCarouselHorizontal: '720×470 px',
     panelImageSizeGuideCarousel11: '1080×1080 px',
@@ -211,6 +219,10 @@ export const translations = {
     copyHtmlCompleteMessage: '코드 복사가 완료되었습니다.',
     copyHtmlClipboardFailed: '클립보드에 복사하지 못했습니다. 다시 시도해 주세요.',
     headerSubtitle: '설정 패널에서 옵션을 변경하면 미리보기에 실시간 반영됩니다.',
+    previewScreenSize: '미리보기 화면',
+    previewDeviceIphone1314: 'iPhone 13 / 14',
+    previewDeviceIphoneSE: 'iPhone SE (3세대)',
+    previewDeviceIpad11: 'iPad Pro 11인치',
     headerHelpAriaLabel: '사용 안내',
     headerHelpTooltip:
       '1. 사용할 팝업 템플릿을 고릅니다.\n2. 이미지·문구·버튼 등 원하는 내용을 입력합니다.\n3. 좌측 하단 「HTML 복사」 버튼을 눌러 코드를 복사합니다.',
@@ -303,6 +315,8 @@ export const translations = {
       '600×1000px / jpg, png, gif / 용량 300kb 이하 권장.',
     panelImageSizeGuideAutoSquare11: '1080×1080px / jpg, png (투명 팝업)',
     panelImageSizeGuideAutoSquare45: '1080×1350px / jpg, png (투명 팝업)',
+    panelImageSizeGuideAutoSquare34: '1080×1440px / jpg, png (투명 팝업)',
+    panelImageSizeGuideAutoSquare35: '1080×1800px / jpg, png (투명 팝업)',
     panelImageSizeGuideCarouselVertical: '480×623px',
     panelImageSizeGuideCarouselHorizontal: '720×470px',
     panelImageSizeGuideCarousel11: '1080×1080px',
@@ -358,6 +372,10 @@ export const translations = {
     copyHtmlCompleteMessage: 'Kode berhasil disalin.',
     copyHtmlClipboardFailed: 'Tidak bisa menyalin ke clipboard. Coba lagi.',
     headerSubtitle: 'Perubahan di panel langsung terlihat di pratinjau.',
+    previewScreenSize: 'Layar pratinjau',
+    previewDeviceIphone1314: 'iPhone 13 / 14',
+    previewDeviceIphoneSE: 'iPhone SE (3rd gen)',
+    previewDeviceIpad11: 'iPad Pro 11-inch',
     headerHelpAriaLabel: 'Cara penggunaan',
     headerHelpTooltip:
       '1. Pilih templat popup yang ingin digunakan.\n2. Isi gambar, teks, tombol, dan konten lain sesuai keinginan.\n3. Klik tombol “Salin HTML” di kiri bawah untuk menyalin kode.',
@@ -453,6 +471,10 @@ export const translations = {
       '1080×1080 px / JPG, PNG (use PNG for transparency).',
     panelImageSizeGuideAutoSquare45:
       '1080×1350 px / JPG, PNG (use PNG for transparency).',
+    panelImageSizeGuideAutoSquare34:
+      '1080×1440 px / JPG, PNG (use PNG for transparency).',
+    panelImageSizeGuideAutoSquare35:
+      '1080×1800 px / JPG, PNG (use PNG for transparency).',
     panelImageSizeGuideCarouselVertical: '480×623 px',
     panelImageSizeGuideCarouselHorizontal: '720×470 px',
     panelImageSizeGuideCarousel11: '1080×1080 px',
@@ -508,6 +530,10 @@ export const translations = {
     copyHtmlCompleteMessage: 'คัดลอกโค้ดเรียบร้อยแล้ว',
     copyHtmlClipboardFailed: 'คัดลอกไปยังคลิปบอร์ดไม่ได้ โปรดลองอีกครั้ง',
     headerSubtitle: 'การเปลี่ยนแปลงในแผงจะสะท้อนในแสดงตัวอย่างทันที',
+    previewScreenSize: 'หน้าจอแสดงตัวอย่าง',
+    previewDeviceIphone1314: 'iPhone 13 / 14',
+    previewDeviceIphoneSE: 'iPhone SE (รุ่นที่ 3)',
+    previewDeviceIpad11: 'iPad Pro 11 นิ้ว',
     headerHelpAriaLabel: 'วิธีใช้',
     headerHelpTooltip:
       '1. เลือกเทมเพลตป๊อปอัปที่จะใช้\n2. กรอกรูป ข้อความ ปุ่ม และเนื้อหาอื่น ๆ ตามต้องการ\n3. คลิกปุ่ม 「คัดลอก HTML」มุมซ้ายล่างเพื่อคัดลอกโค้ด',
@@ -602,6 +628,10 @@ export const translations = {
       '1080×1080 px / JPG, PNG (use PNG for transparency).',
     panelImageSizeGuideAutoSquare45:
       '1080×1350 px / JPG, PNG (use PNG for transparency).',
+    panelImageSizeGuideAutoSquare34:
+      '1080×1440 px / JPG, PNG (use PNG for transparency).',
+    panelImageSizeGuideAutoSquare35:
+      '1080×1800 px / JPG, PNG (use PNG for transparency).',
     panelImageSizeGuideCarouselVertical: '480×623 px',
     panelImageSizeGuideCarouselHorizontal: '720×470 px',
     panelImageSizeGuideCarousel11: '1080×1080 px',
@@ -656,6 +686,10 @@ export const translations = {
     copyHtmlCompleteMessage: '程式碼已複製完成。',
     copyHtmlClipboardFailed: '無法複製到剪貼簿，請再試一次。',
     headerSubtitle: '面板上的變更會即時反映於預覽。',
+    previewScreenSize: '預覽螢幕',
+    previewDeviceIphone1314: 'iPhone 13 / 14',
+    previewDeviceIphoneSE: 'iPhone SE（第 3 代）',
+    previewDeviceIpad11: 'iPad Pro 11 吋',
     headerHelpAriaLabel: '使用說明',
     headerHelpTooltip:
       '1. 選擇要使用的彈窗範本。\n2. 依需求填入圖片、文案、按鈕與其他內容。\n3. 點選左下角「複製 HTML」按鈕以複製程式碼。',
@@ -750,6 +784,10 @@ export const translations = {
       '1080×1080 px / JPG, PNG (use PNG for transparency).',
     panelImageSizeGuideAutoSquare45:
       '1080×1350 px / JPG, PNG (use PNG for transparency).',
+    panelImageSizeGuideAutoSquare34:
+      '1080×1440 px / JPG, PNG (use PNG for transparency).',
+    panelImageSizeGuideAutoSquare35:
+      '1080×1800 px / JPG, PNG (use PNG for transparency).',
     panelImageSizeGuideCarouselVertical: '480×623 px',
     panelImageSizeGuideCarouselHorizontal: '720×470 px',
     panelImageSizeGuideCarousel11: '1080×1080 px',
@@ -805,6 +843,10 @@ export const translations = {
     copyHtmlCompleteMessage: 'Código copiado correctamente.',
     copyHtmlClipboardFailed: 'No se pudo copiar al portapapeles. Inténtalo de nuevo.',
     headerSubtitle: 'Los cambios en el panel se reflejan al instante en la vista previa.',
+    previewScreenSize: 'Pantalla de vista previa',
+    previewDeviceIphone1314: 'iPhone 13 / 14',
+    previewDeviceIphoneSE: 'iPhone SE (3.ª gen.)',
+    previewDeviceIpad11: 'iPad Pro 11"',
     headerHelpAriaLabel: 'Cómo usar',
     headerHelpTooltip:
       '1. Elige una plantilla de popup para usar.\n2. Completa imágenes, textos, botones y el contenido que necesites.\n3. Pulsa el botón «Copiar HTML» abajo a la izquierda para copiar el código.',
@@ -900,6 +942,10 @@ export const translations = {
       '1080×1080 px / JPG, PNG (use PNG for transparency).',
     panelImageSizeGuideAutoSquare45:
       '1080×1350 px / JPG, PNG (use PNG for transparency).',
+    panelImageSizeGuideAutoSquare34:
+      '1080×1440 px / JPG, PNG (use PNG for transparency).',
+    panelImageSizeGuideAutoSquare35:
+      '1080×1800 px / JPG, PNG (use PNG for transparency).',
     panelImageSizeGuideCarouselVertical: '480×623 px',
     panelImageSizeGuideCarouselHorizontal: '720×470 px',
     panelImageSizeGuideCarousel11: '1080×1080 px',
@@ -955,6 +1001,10 @@ export const translations = {
     copyHtmlCompleteMessage: 'Code wurde kopiert.',
     copyHtmlClipboardFailed: 'Kopieren in die Zwischenablage fehlgeschlagen. Bitte erneut versuchen.',
     headerSubtitle: 'Änderungen im Panel werden sofort in der Vorschau angezeigt.',
+    previewScreenSize: 'Vorschau-Bildschirm',
+    previewDeviceIphone1314: 'iPhone 13 / 14',
+    previewDeviceIphoneSE: 'iPhone SE (3. Gen.)',
+    previewDeviceIpad11: 'iPad Pro 11"',
     headerHelpAriaLabel: 'Anleitung',
     headerHelpTooltip:
       '1. Wählen Sie eine Popup-Vorlage aus.\n2. Tragen Sie Bilder, Texte, Buttons und andere Inhalte nach Wunsch ein.\n3. Klicken Sie unten links auf „HTML kopieren“, um den Code zu kopieren.',
@@ -1050,6 +1100,10 @@ export const translations = {
       '1080×1080 px / JPG, PNG (use PNG for transparency).',
     panelImageSizeGuideAutoSquare45:
       '1080×1350 px / JPG, PNG (use PNG for transparency).',
+    panelImageSizeGuideAutoSquare34:
+      '1080×1440 px / JPG, PNG (use PNG for transparency).',
+    panelImageSizeGuideAutoSquare35:
+      '1080×1800 px / JPG, PNG (use PNG for transparency).',
     panelImageSizeGuideCarouselVertical: '480×623 px',
     panelImageSizeGuideCarouselHorizontal: '720×470 px',
     panelImageSizeGuideCarousel11: '1080×1080 px',
@@ -1105,6 +1159,10 @@ export const translations = {
     copyHtmlCompleteMessage: 'Code copié.',
     copyHtmlClipboardFailed: 'Impossible de copier dans le presse-papiers. Réessayez.',
     headerSubtitle: 'Les modifications du panneau se reflètent instantanément dans l’aperçu.',
+    previewScreenSize: 'Écran d’aperçu',
+    previewDeviceIphone1314: 'iPhone 13 / 14',
+    previewDeviceIphoneSE: 'iPhone SE (3e gen.)',
+    previewDeviceIpad11: 'iPad Pro 11 pouces',
     headerHelpAriaLabel: 'Mode d’emploi',
     headerHelpTooltip:
       '1. Choisissez un modèle de popup à utiliser.\n2. Saisissez images, textes, boutons et autres contenus souhaités.\n3. Cliquez sur le bouton « Copier le HTML » en bas à gauche pour copier le code.',
@@ -1200,6 +1258,10 @@ export const translations = {
       '1080×1080 px / JPG, PNG (use PNG for transparency).',
     panelImageSizeGuideAutoSquare45:
       '1080×1350 px / JPG, PNG (use PNG for transparency).',
+    panelImageSizeGuideAutoSquare34:
+      '1080×1440 px / JPG, PNG (use PNG for transparency).',
+    panelImageSizeGuideAutoSquare35:
+      '1080×1800 px / JPG, PNG (use PNG for transparency).',
     panelImageSizeGuideCarouselVertical: '480×623 px',
     panelImageSizeGuideCarouselHorizontal: '720×470 px',
     panelImageSizeGuideCarousel11: '1080×1080 px',

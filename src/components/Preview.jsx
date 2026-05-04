@@ -32,6 +32,8 @@ import {
   SMV_SIMPLE_ICON_PAD_TOP,
   SMV_SLIDE_RADIUS,
   getSmvCarouselSlideHeight,
+  PREVIEW_PHONE_IPHONE_13_14_H,
+  PREVIEW_PHONE_IPHONE_13_14_W,
   SMV_TITLE_DESC_GAP,
 } from '../config/popupTypes'
 import {
@@ -42,6 +44,7 @@ import {
   getSimpleIconThumbDimensions,
 } from '../config/simpleIcon'
 import BottomSlideUpPreview from './BottomSlideUpPreview'
+import PreviewDeviceFrame from './PreviewDeviceFrame'
 import { resolvePopupPreviewDimensions } from '../utils/popupLayout'
 import { normalizeSlideModal11Images } from '../utils/slideModal11'
 import { measureSmvVisualLineCount } from '../utils/smvTextMeasure'
@@ -50,6 +53,7 @@ import {
   getSmvLogicalIndexFromTrackIndex,
   normalizeSlideVerticalImages,
 } from '../utils/slideVertical'
+import { PREVIEW_DEVICE_PRESET_DEFAULT_ID } from '../config/previewDevicePresets'
 
 const PREVIEW_SMV_CAROUSEL_VIEW_CLASS = 'preview-smv-carousel-view'
 const PREVIEW_SMV_CAROUSEL_INSTANT_CLASS = 'preview-smv-carousel-view--instant'
@@ -134,8 +138,6 @@ function getLinearTrackIndexCentered(viewportEl) {
 }
 
 const POPUP_SIDE_MARGIN = 14
-const FOOTER_PADDING_LEFT = 4
-const FOOTER_PADDING_RIGHT = 0
 const BUTTON_HEIGHT = 48
 const BUTTON_RADIUS = 4
 const BUTTON_HORIZONTAL_PADDING = 16
@@ -257,24 +259,33 @@ export default function Preview({
   t,
   onSlideVerticalPreviewIndexChange,
   onSlidePreviewIndexChange,
+  previewScreenW = PREVIEW_PHONE_IPHONE_13_14_W,
+  previewScreenH = PREVIEW_PHONE_IPHONE_13_14_H,
+  previewDevicePresetId = PREVIEW_DEVICE_PRESET_DEFAULT_ID,
 }) {
   const tr = t || {}
   const cfg = getPopupTypeConfig(state.popupType)
-  const frameDims = resolvePopupPreviewDimensions(state)
+  const frameDims = resolvePopupPreviewDimensions(state, {
+    previewScreenW,
+    previewScreenH,
+  })
   const isSlideModalAutoSquare = isSlideModalAutoSquareType(state.popupType)
   const isSmvCarousel = isCarouselThumbPopupType(state.popupType)
   const isSimpleIconModal = isSimpleIconModalPopupType(state.popupType)
+  const isChoiceButtonModal = isChoiceButtonModalType(state.popupType)
+  /** IAM Studio式: 스테이지 `px 10%` + 컬럼 `100%`·`max(310)` — 캐러셀·Simple Icon (참고 HTML `.center { width: 310px }` / export `data-iam-col`과 동일) */
+  const useSmvStudioMargins = isSmvCarousel || isSimpleIconModal
+  const useStudioShellMargins = useSmvStudioMargins
+  const studioShellColumnMaxW = SMV_MODAL_W
   const isBottomSlideUp = isBottomSlideUpType(state.popupType)
   const smvSlideH = getSmvCarouselSlideHeight(state.popupType)
   const smvScrollRef = useRef(null)
   const suppressSmvScrollSyncRef = useRef(false)
-  const smvDragRef = useRef(null)
   const smvFirstLayoutRef = useRef(true)
   /** 패널 prev/next 순환 시 스크롤 방향(복제 슬라이드 경유) */
   const smvPrevLogicalIdxRef = useRef(state.slideVerticalPreviewIndex ?? 0)
   const smvScrollSettleTimer = useRef(null)
   const smvDotRafRef = useRef(null)
-  const [smvCarouselDragging, setSmvCarouselDragging] = useState(false)
   /** 스크롤 중 인디케이터: 복제 슬라이드 위에서도 실제 논리 인덱스 표시(null이면 smvIdx 사용) */
   const [smvScrollDotLogical, setSmvScrollDotLogical] = useState(null)
   const slideModalScrollRef = useRef(null)
@@ -640,38 +651,6 @@ export default function Preview({
     }
   }, [isSlideModalAutoSquare, slideImages, onSlidePreviewIndexChange, slideIdx])
 
-  const onSmvCarouselPointerDown = (e) => {
-    if (e.pointerType === 'mouse' && e.button !== 0) return
-    const shell = smvScrollRef.current
-    if (!shell) return
-    smvDragRef.current = { startX: e.clientX, scrollLeft: shell.scrollLeft }
-    setSmvCarouselDragging(true)
-    e.currentTarget.setPointerCapture?.(e.pointerId)
-  }
-
-  const onSmvCarouselPointerMove = (e) => {
-    const d = smvDragRef.current
-    const shell = smvScrollRef.current
-    if (!d || !shell) return
-    shell.scrollLeft = d.scrollLeft - (e.clientX - d.startX)
-  }
-
-  const onSmvCarouselPointerUp = (e) => {
-    const shell = smvScrollRef.current
-    smvDragRef.current = null
-    setSmvCarouselDragging(false)
-    try {
-      e.currentTarget.releasePointerCapture?.(e.pointerId)
-    } catch {
-      /* ignore */
-    }
-    if (shell) {
-      const slides = shell.firstElementChild?.children
-      const ti = getSmvTrackIndexCentered(shell)
-      slides?.[ti]?.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' })
-    }
-  }
-
   const onSlideModalPointerDown = (e) => {
     if (e.pointerType === 'mouse' && e.button !== 0) return
     const shell = slideModalScrollRef.current
@@ -738,8 +717,31 @@ export default function Preview({
     ? state.button2?.textColor ?? BUTTON_TEXT_COLOR
     : BUTTON_TEXT_COLOR
 
-  const buttonRowStyle =
-    cfg.buttonBottom != null
+  const buttonRowStyle = isChoiceButtonModal
+    ? cfg.buttonBottom != null
+      ? {
+          left: 0,
+          right: 0,
+          bottom: cfg.buttonBottom,
+          height: BUTTON_HEIGHT,
+          gap,
+          paddingLeft: 20,
+          paddingRight: 20,
+          boxSizing: 'border-box',
+          justifyContent: (state.buttonCount ?? 1) === 2 ? 'space-between' : 'center',
+        }
+      : {
+          left: 0,
+          right: 0,
+          top: cfg.buttonTop,
+          height: BUTTON_HEIGHT,
+          gap,
+          paddingLeft: 20,
+          paddingRight: 20,
+          boxSizing: 'border-box',
+          justifyContent: (state.buttonCount ?? 1) === 2 ? 'space-between' : 'center',
+        }
+    : cfg.buttonBottom != null
       ? {
           left: '50%',
           transform: 'translateX(-50%)',
@@ -756,25 +758,64 @@ export default function Preview({
         }
 
   return (
-    <div className="relative w-full max-w-[390px] aspect-[390/844] rounded-[2.5rem] border-0 bg-zinc-900 shadow-2xl overflow-hidden">
+    <PreviewDeviceFrame
+      presetId={previewDevicePresetId}
+      screenW={previewScreenW}
+      screenH={previewScreenH}
+    >
       {isBottomSlideUp ? (
         <BottomSlideUpPreview state={state} tr={tr} />
       ) : (
+      <>
+        {/* 전체 화면 딤(오버레이 불투명도). 베이스는 흰 스크린 → 투명 PNG 대비 확인 */}
+        <div
+          className="pointer-events-none absolute inset-0 z-[5] rounded-[inherit] transition-colors"
+          style={overlayStyle}
+          aria-hidden
+        />
       <div
-        className={`absolute inset-0 flex items-center justify-center p-3 bg-white overflow-x-hidden overflow-y-auto ${isSmvCarousel ? HIDE_SCROLLBAR_CLASS : ''}`}
+        className={`absolute inset-0 z-10 flex min-h-0 items-center justify-center overflow-x-hidden overflow-y-auto bg-transparent ${useStudioShellMargins ? 'py-3 px-[10%]' : 'p-3'} ${isSmvCarousel ? HIDE_SCROLLBAR_CLASS : ''}`}
       >
         <div
-          className="absolute inset-0 z-10 transition-colors pointer-events-none"
-          style={overlayStyle}
-        />
-        <div
-          className="relative z-20 flex flex-col items-center flex-shrink-0 my-auto"
-          style={{ marginLeft: POPUP_SIDE_MARGIN, marginRight: POPUP_SIDE_MARGIN }}
+          className="relative z-20 flex w-full max-h-full min-h-0 max-w-full flex-col items-center flex-shrink-0 self-center"
+          style={
+            useStudioShellMargins
+              ? { marginLeft: 0, marginRight: 0 }
+              : { marginLeft: POPUP_SIDE_MARGIN, marginRight: POPUP_SIDE_MARGIN }
+          }
         >
+          <div
+            style={
+              useStudioShellMargins
+                ? {
+                    width: '100%',
+                    maxWidth: studioShellColumnMaxW,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'stretch',
+                  }
+                : { display: 'contents' }
+            }
+          >
           <div
             className="relative flex-none"
             style={
-              isSmvCarousel || isSimpleIconModal ? smvContainerStyle : popupContainerStyle
+              isSmvCarousel || isSimpleIconModal
+                ? {
+                    ...smvContainerStyle,
+                    ...(useSmvStudioMargins ? { width: '100%' } : {}),
+                  }
+                : {
+                    ...popupContainerStyle,
+                    ...(isChoiceButtonModal
+                      ? {
+                          width: '100%',
+                          maxWidth: cfg.width,
+                          height: 'auto',
+                          aspectRatio: `${cfg.width} / ${cfg.height}`,
+                        }
+                      : {}),
+                  }
             }
           >
             {isSmvCarousel || isSimpleIconModal ? (
@@ -791,7 +832,7 @@ export default function Preview({
                 {isSmvCarousel ? (
                 <div
                   style={{
-                    width: SMV_MODAL_W,
+                    width: `calc(100% + ${SMV_CONTENT_PAD_X * 2}px)`,
                     marginLeft: -SMV_CONTENT_PAD_X,
                     marginRight: -SMV_CONTENT_PAD_X,
                     flexShrink: 0,
@@ -801,12 +842,8 @@ export default function Preview({
                   <div
                     ref={smvScrollRef}
                     className={`relative flex-shrink-0 ${HIDE_SCROLLBAR_CLASS} select-none ${PREVIEW_SMV_CAROUSEL_VIEW_CLASS}`}
-                    onPointerDown={onSmvCarouselPointerDown}
-                    onPointerMove={onSmvCarouselPointerMove}
-                    onPointerUp={onSmvCarouselPointerUp}
-                    onPointerCancel={onSmvCarouselPointerUp}
                     style={{
-                      width: SMV_MODAL_W,
+                      width: '100%',
                       height: smvSlideH,
                       overflowX: 'auto',
                       overflowY: 'hidden',
@@ -814,7 +851,6 @@ export default function Preview({
                       overscrollBehaviorX: 'contain',
                       WebkitOverflowScrolling: 'touch',
                       touchAction: 'pan-x',
-                      cursor: smvCarouselDragging ? 'grabbing' : 'grab',
                     }}
                   >
                     <div
@@ -861,7 +897,9 @@ export default function Preview({
                 ) : (
                   <div
                     style={{
-                      width: SMV_MODAL_W,
+                      width: isSimpleIconModal
+                        ? `calc(100% + ${SMV_CONTENT_PAD_X * 2}px)`
+                        : SMV_MODAL_W,
                       marginLeft: -SMV_CONTENT_PAD_X,
                       marginRight: -SMV_CONTENT_PAD_X,
                       flexShrink: 0,
@@ -920,7 +958,8 @@ export default function Preview({
                 <div style={{ height: SMV_GAP_SLIDE_TEXT, flexShrink: 0 }} aria-hidden />
                 <div
                   style={{
-                    width: SMV_COLUMN_W,
+                    width: useSmvStudioMargins ? '100%' : SMV_COLUMN_W,
+                    maxWidth: useSmvStudioMargins ? SMV_COLUMN_W : undefined,
                     flexShrink: 0,
                     boxSizing: 'border-box',
                   }}
@@ -940,7 +979,8 @@ export default function Preview({
                 <div style={{ height: SMV_TITLE_DESC_GAP, flexShrink: 0 }} aria-hidden />
                 <div
                   style={{
-                    width: SMV_COLUMN_W,
+                    width: useSmvStudioMargins ? '100%' : SMV_COLUMN_W,
+                    maxWidth: useSmvStudioMargins ? SMV_COLUMN_W : undefined,
                     flexShrink: 0,
                     boxSizing: 'border-box',
                   }}
@@ -960,9 +1000,10 @@ export default function Preview({
                 <div style={{ height: SMV_GAP_TEXT_BTN, flexShrink: 0 }} aria-hidden />
                 <button
                   type="button"
-                  className="flex items-center justify-center font-medium flex-shrink-0 transition-opacity hover:opacity-90"
+                  className="flex items-center justify-center font-medium flex-shrink-0"
                   style={{
-                    width: SMV_BTN_W,
+                    width: useSmvStudioMargins ? '100%' : SMV_BTN_W,
+                    maxWidth: useSmvStudioMargins ? SMV_BTN_W : undefined,
                     height: SMV_BTN_H,
                     borderRadius: SMV_BTN_RADIUS,
                     backgroundColor: SMV_BTN_BG,
@@ -1059,14 +1100,14 @@ export default function Preview({
                 )}
                 {showButtons && (
                   <div
-                    className="absolute flex items-center justify-center z-10"
+                    className={`absolute z-10 flex items-center ${isChoiceButtonModal ? '' : 'justify-center'}`}
                     style={buttonRowStyle}
                   >
                     {(state.buttonCount ?? 1) === 2 ? (
                       <>
                         <button
                           type="button"
-                          className="flex items-center justify-center font-medium shrink-0 transition-opacity hover:opacity-90"
+                          className="flex items-center justify-center font-medium shrink-0"
                           style={{
                             width: DUAL_BUTTON_WIDTH,
                             height: BUTTON_HEIGHT,
@@ -1083,7 +1124,7 @@ export default function Preview({
                         </button>
                         <button
                           type="button"
-                          className="flex items-center justify-center font-medium shrink-0 transition-opacity hover:opacity-90"
+                          className="flex items-center justify-center font-medium shrink-0"
                           style={{
                             width: DUAL_BUTTON_WIDTH,
                             height: BUTTON_HEIGHT,
@@ -1102,7 +1143,7 @@ export default function Preview({
                     ) : (
                       <button
                         type="button"
-                        className="flex items-center justify-center font-medium shrink-0 transition-opacity hover:opacity-90"
+                        className="flex items-center justify-center font-medium shrink-0"
                         style={{
                           width: SINGLE_BUTTON_WIDTH,
                           height: BUTTON_HEIGHT,
@@ -1124,19 +1165,17 @@ export default function Preview({
             )}
           </div>
           <footer
-            className="flex items-center justify-between w-full flex-shrink-0"
+            className="mt-2 flex w-full flex-shrink-0 items-center justify-between"
             style={{
-              width: frameDims.width,
+              width: useStudioShellMargins ? '100%' : frameDims.width,
               minHeight: 20,
-              paddingLeft: FOOTER_PADDING_LEFT,
-              paddingRight: FOOTER_PADDING_RIGHT,
-              paddingTop: 12,
-              paddingBottom: 0,
+              boxSizing: 'border-box',
+              backgroundColor: 'transparent',
             }}
           >
             <button
               type="button"
-              className="cursor-pointer transition-opacity hover:opacity-80 text-left"
+              className="cursor-pointer text-left"
               style={{
                 color: FOOTER_TEXT_COLOR,
                 fontSize: FOOTER_FONT_SIZE,
@@ -1149,7 +1188,7 @@ export default function Preview({
             </button>
             <button
               type="button"
-              className="cursor-pointer flex items-center justify-center transition-opacity hover:opacity-80"
+              className="cursor-pointer flex items-center justify-center"
               style={{
                 color: FOOTER_TEXT_COLOR,
                 fontSize: FOOTER_FONT_SIZE,
@@ -1163,9 +1202,11 @@ export default function Preview({
               <CloseXIcon />
             </button>
           </footer>
+          </div>
         </div>
       </div>
+      </>
       )}
-    </div>
+    </PreviewDeviceFrame>
   )
 }

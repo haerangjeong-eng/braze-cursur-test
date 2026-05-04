@@ -1,6 +1,11 @@
-import { useState, useCallback, useRef, useEffect } from 'react'
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import ControlPanel from './components/ControlPanel'
 import Preview from './components/Preview'
+import PreviewDevicePicker from './components/PreviewDevicePicker'
+import {
+  getPreviewDevicePreset,
+  PREVIEW_DEVICE_PRESET_DEFAULT_ID,
+} from './config/previewDevicePresets'
 import { getT } from './translations'
 import { getPopupHtml } from './utils/popupToHtml'
 import { compressImageDataUrlForExport } from './utils/compressImageDataUrl'
@@ -106,6 +111,14 @@ export default function App() {
   const [copyToast, setCopyToast] = useState(null)
   /** 복사 실패 시에만 패널 경고(링·문구) 표시 — 팝업 타입 변경 시 초기화 */
   const [copyValidationHintsVisible, setCopyValidationHintsVisible] = useState(false)
+  /** 미리보기 폰·태블릿 프레임 (HTML 복사와 무관) */
+  const [previewDevicePresetId, setPreviewDevicePresetId] = useState(
+    PREVIEW_DEVICE_PRESET_DEFAULT_ID
+  )
+  const previewDevice = useMemo(
+    () => getPreviewDevicePreset(previewDevicePresetId),
+    [previewDevicePresetId]
+  )
 
   useEffect(() => {
     setCopyValidationHintsVisible(false)
@@ -568,16 +581,28 @@ export default function App() {
           />
         </aside>
 
-        <section className="flex-1 flex flex-col min-h-0 bg-zinc-950">
-          <div className="flex-1 flex items-center justify-center p-6 lg:p-10">
-            <Preview
-              state={state}
-              t={t}
-              onSlideVerticalPreviewIndexChange={(idx) =>
-                update('slideVerticalPreviewIndex', idx)
-              }
-              onSlidePreviewIndexChange={(idx) => update('slidePreviewIndex', idx)}
-            />
+        <section className="flex min-h-0 flex-1 flex-col overflow-auto bg-zinc-950">
+          <div className="flex min-h-0 flex-1 flex-col items-center gap-4 p-6 lg:p-10">
+            <div className="flex shrink-0 justify-center">
+              <PreviewDevicePicker
+                value={previewDevicePresetId}
+                onChange={setPreviewDevicePresetId}
+                t={t}
+              />
+            </div>
+            <div className="flex min-h-0 w-full flex-1 flex-col items-center justify-center">
+              <Preview
+                state={state}
+                t={t}
+                previewScreenW={previewDevice.width}
+                previewScreenH={previewDevice.height}
+                previewDevicePresetId={previewDevicePresetId}
+                onSlideVerticalPreviewIndexChange={(idx) =>
+                  update('slideVerticalPreviewIndex', idx)
+                }
+                onSlidePreviewIndexChange={(idx) => update('slidePreviewIndex', idx)}
+              />
+            </div>
           </div>
         </section>
       </main>
